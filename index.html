@@ -8,7 +8,7 @@
   <!-- Google Font: Open Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -19,34 +19,35 @@
   <style>
     body {
       font-family: 'Open Sans', sans-serif;
-      background-color: #ffffff;
-      color: #000000;
+      background-color: #f8fafc;
+      color: #0f172a;
     }
     .scratch-block {
-      background-color: #f7f301;
-      border: 2px solid #000000;
-      box-shadow: 3px 3px 0px #000000;
+      background-color: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
       cursor: grab;
       user-select: none;
+      transition: all 0.15s ease;
     }
     .scratch-block:active {
       cursor: grabbing;
-      box-shadow: 1px 1px 0px #000000;
-      transform: translate(2px, 2px);
+      background-color: #e2e8f0;
+      transform: scale(0.98);
     }
   </style>
 </head>
-<body class="min-h-screen overflow-x-hidden relative bg-white text-black">
+<body class="min-h-screen overflow-x-hidden relative bg-slate-50 text-slate-900">
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
 
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxDCrgayM9o_Q4UnZ2JwcBfoisVapls_3loCM81kMt4gri8peztk95DbIQXmI8rSVLIg/exec";
+    const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1CInoi1H1tQWkf5UYdcVzQRN9DCm_XX79?usp=drive_link";
 
-    // Helper to format ISO date-time strings to clean times
     const formatTimeDisplay = (timeVal) => {
-      if (!timeVal) return '01:30 PM';
+      if (!timeVal) return '';
       if (typeof timeVal === 'string' && timeVal.includes('T')) {
         try {
           const d = new Date(timeVal);
@@ -58,7 +59,7 @@
       return timeVal;
     };
 
-    // --- 1. Address Submission Component ---
+    // --- 1. Home / Address Submission Component ---
     const AddressForm = ({ autoEmail }) => {
       const [fullName, setFullName] = useState('');
       const [address, setAddress] = useState('');
@@ -121,56 +122,56 @@
       return (
         <div class="space-y-5">
           <div>
-            <h2 class="text-2xl font-extrabold text-black mb-1">Submit Pickup Address</h2>
-            <p class="text-xs text-black/60">Submitting with an existing Full Name will overwrite your previous entry.</p>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Submit Pickup Address</h2>
+            <p class="text-xs text-slate-500">Submitting with an existing Full Name will overwrite your previous entry.</p>
           </div>
 
           {warningMsg && (
-            <div class="bg-red-50 border-2 border-red-500 p-4 rounded-xl text-red-700 text-xs font-bold space-y-1">
-              <p class="uppercase text-[10px] tracking-wider font-extrabold text-red-800">⚠️ Action Required</p>
+            <div class="bg-red-50 border border-red-200 p-4 rounded-xl text-red-700 text-xs font-medium space-y-1">
+              <p class="uppercase text-[10px] tracking-wider font-bold text-red-800">⚠️ Action Required</p>
               <p>{warningMsg}</p>
             </div>
           )}
 
           {submitted ? (
-            <div class="bg-[#002ce2]/10 border-2 border-[#002ce2] p-5 rounded-xl space-y-2">
-              <h3 class="text-lg font-bold text-[#002ce2]">✓ Address Submitted / Overwritten</h3>
-              <p class="text-xs text-black/80">Your row matching "<strong>{fullName}</strong>" in Google Sheets has been updated.</p>
-              <button onClick={() => setSubmitted(false)} class="text-xs text-[#002ce2] font-bold underline mt-2 block">
+            <div class="bg-blue-50 border border-blue-200 p-5 rounded-xl space-y-2">
+              <h3 class="text-sm font-bold text-blue-700">✓ Address Submitted / Overwritten</h3>
+              <p class="text-xs text-slate-700">Your row matching "<strong>{fullName}</strong>" in Google Sheets has been updated.</p>
+              <button onClick={() => setSubmitted(false)} class="text-xs text-blue-600 font-semibold underline mt-2 block">
                 Edit address or submit another
               </button>
             </div>
           ) : (
             <form class="space-y-4" onSubmit={handleSubmit}>
               <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-black mb-1">Full Name</label>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Full Name</label>
                 <input 
                   required 
                   value={fullName} 
                   onChange={(e) => setFullName(e.target.value)} 
                   type="text" 
-                  class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-black text-sm focus:border-[#002ce2] focus:bg-white outline-none transition" 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white outline-none transition" 
                   placeholder="Lim Zhi Ying" 
                 />
-                <span class="text-[10px] text-black/50 mt-0.5 block">Example: Lim Zhi Ying</span>
+                <span class="text-[10px] text-slate-400 mt-0.5 block">Example: Lim Zhi Ying</span>
               </div>
 
               <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-black mb-1">Pickup Address</label>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Pickup Address</label>
                 <textarea 
                   required 
                   value={address} 
                   onChange={(e) => setAddress(e.target.value)} 
-                  class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-black text-sm focus:border-[#002ce2] focus:bg-white outline-none h-28 transition" 
+                  class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 focus:border-blue-600 focus:bg-white outline-none h-24 transition" 
                   placeholder="Ehsan Ria"
                 ></textarea>
-                <span class="text-[10px] text-black/50 mt-0.5 block">Example: Ehsan Ria</span>
+                <span class="text-[10px] text-slate-400 mt-0.5 block">Example: Ehsan Ria</span>
               </div>
 
               <button 
                 disabled={loading} 
                 type="submit" 
-                class="w-full bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold py-3.5 rounded-lg transition duration-200 text-sm tracking-wide disabled:opacity-50 shadow-md shadow-[#002ce2]/20"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition duration-150 text-xs tracking-wide disabled:opacity-50 shadow-sm"
               >
                 {loading ? "Saving to Spreadsheet..." : "Submit Address"}
               </button>
@@ -203,31 +204,39 @@
       return (
         <div class="space-y-4">
           <div>
-            <h2 class="text-2xl font-extrabold text-black mb-1">Trip Agenda</h2>
-            <p class="text-xs text-black/60">Live schedule from master spreadsheet</p>
+            <h2 class="text-xl font-bold text-slate-900 mb-1">Trip Agenda</h2>
+            <p class="text-xs text-slate-500">Live schedule from master spreadsheet</p>
           </div>
 
           {loading ? (
-            <div class="p-6 text-center text-xs text-black/50">Loading agenda from spreadsheet...</div>
+            <div class="p-6 text-center text-xs text-slate-400">Loading agenda from spreadsheet...</div>
           ) : agendaItems.length > 0 ? (
             <div class="space-y-3">
-              {agendaItems.map((item, index) => (
-                <div key={index} class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <div class="flex justify-between items-center mb-1">
-                    <span class={`inline-block text-white text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                      item.status === 'Tentative' ? 'bg-[#f7f301] text-black' : 'bg-[#002ce2]'
-                    }`}>
-                      {item.day || 'Day 1'} {item.time ? `• ${formatTimeDisplay(item.time)}` : ''}
-                    </span>
-                    <span class="text-[10px] font-bold text-black/50 uppercase">{item.status || 'Confirmed'}</span>
+              {agendaItems.map((item, index) => {
+                const isDay2 = item.day && item.day.toString().toLowerCase().includes('2');
+                return (
+                  <div 
+                    key={index} 
+                    class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm"
+                  >
+                    <div class="flex justify-between items-center mb-1">
+                      <span class={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded ${
+                        isDay2 
+                          ? 'bg-slate-100 text-slate-800 border border-slate-200' 
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}>
+                        {item.day || 'Day 1'} {item.time ? `• ${formatTimeDisplay(item.time)}` : ''}
+                      </span>
+                      <span class="text-[10px] font-semibold text-slate-400 uppercase">{item.status || 'Confirmed'}</span>
+                    </div>
+                    {item.activity && <h3 class="text-sm font-bold text-slate-900 mt-1">{item.activity}</h3>}
+                    {item.details && <p class="text-xs text-slate-600 mt-0.5">{item.details}</p>}
                   </div>
-                  <h3 class="text-base font-bold text-black mt-1">{item.activity}</h3>
-                  {item.details && <p class="text-xs text-black/70 mt-1">{item.details}</p>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div class="p-4 text-center text-xs text-black/50">No agenda items found in spreadsheet.</div>
+            <div class="p-4 text-center text-xs text-slate-400">No agenda items found in spreadsheet.</div>
           )}
         </div>
       );
@@ -251,7 +260,6 @@
             setParticipants(data.participants || []);
             setAddressMap(data.addressMap || {});
             
-            // Clean up departure time formatting
             const cleanedCars = (data.cars || []).map((c) => ({
               ...c,
               departureTime: formatTimeDisplay(c.departureTime)
@@ -318,7 +326,6 @@
         setCars(updatedCars);
       };
 
-      // --- ROUTE BUILDER & REARRANGE HELPERS ---
       const parseRouteStops = (routeStr) => {
         if (!routeStr) return [];
         return routeStr.split(' ➔ ').map((s) => s.trim()).filter(Boolean);
@@ -385,31 +392,31 @@
         <div class="space-y-6">
           <div class="flex justify-between items-start">
             <div>
-              <h2 class="text-2xl font-extrabold text-black mb-1">Who fetch us ya?</h2>
-              <p class="text-xs text-black/60">Choose drivers, assign passenger blocks, and arrange pickup stops.</p>
+              <h2 class="text-xl font-bold text-slate-900 mb-1">Who fetch us ya?</h2>
+              <p class="text-xs text-slate-500">Choose drivers, assign passenger blocks, and arrange pickup stops.</p>
             </div>
             <button 
               onClick={saveToSheet} 
               disabled={saving || loading}
-              class="bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold px-4 py-2 rounded-lg text-xs transition shadow-md shadow-[#002ce2]/20 disabled:opacity-50"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
             >
               {saving ? "Syncing..." : "Save & Sync to Sheet"}
             </button>
           </div>
 
           {loading ? (
-            <div class="p-6 text-center text-xs text-black/50">Loading participants & drivers...</div>
+            <div class="p-6 text-center text-xs text-slate-400">Loading participants & drivers...</div>
           ) : (
             <div class="space-y-6">
               
               {/* Driver Selection */}
-              <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 space-y-3">
-                <span class="text-xs font-black uppercase tracking-wider text-black block">
+              <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-700 block">
                   🚗 Choose Who is Driver (Tick / Untick):
                 </span>
                 
                 {participants.length === 0 ? (
-                  <p class="text-xs text-black/40 italic">No registered participants found yet. Submit addresses first!</p>
+                  <p class="text-xs text-slate-400 italic">No registered participants found yet. Submit addresses first!</p>
                 ) : (
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {participants.map((person, idx) => {
@@ -417,17 +424,17 @@
                       return (
                         <label 
                           key={idx} 
-                          class={`flex items-center gap-2 p-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
+                          class={`flex items-center gap-2 p-2 rounded-lg border text-xs font-semibold cursor-pointer transition ${
                             isDriver 
-                              ? 'bg-[#002ce2] text-white border-[#002ce2]' 
-                              : 'bg-white text-black border-slate-300 hover:bg-slate-100'
+                              ? 'bg-blue-600 text-white border-blue-600' 
+                              : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
                           }`}
                         >
                           <input 
                             type="checkbox" 
                             checked={isDriver} 
                             onChange={() => toggleDriver(person)}
-                            class="w-4 h-4 accent-[#f7f301] cursor-pointer" 
+                            class="w-3.5 h-3.5 accent-blue-600 cursor-pointer" 
                           />
                           <span class="truncate">{person} {isDriver ? '(Driver)' : ''}</span>
                         </label>
@@ -438,13 +445,13 @@
               </div>
 
               {/* Unassigned Passenger Scratch Blocks */}
-              <div class="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-4">
-                <span class="text-[10px] font-black uppercase tracking-wider text-black/50 block mb-2">
+              <div class="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
                   🧩 Unassigned Passenger Blocks ({unassignedPassengers.length})
                 </span>
                 
                 {unassignedPassengers.length === 0 ? (
-                  <p class="text-xs text-black/40 italic">All passengers are assigned or selected as drivers!</p>
+                  <p class="text-xs text-slate-400 italic">All passengers are assigned or selected as drivers!</p>
                 ) : (
                   <div class="flex flex-wrap gap-2">
                     {unassignedPassengers.map((name, i) => (
@@ -452,12 +459,12 @@
                         key={i}
                         draggable
                         onDragStart={() => setDraggedName(name)}
-                        class="scratch-block px-3 py-1.5 rounded-lg text-xs font-black text-black flex items-center gap-2"
+                        class="scratch-block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-sm"
                       >
                         <span>⋮⋮ {name}</span>
                         <select 
                           onChange={(e) => e.target.value !== "" && assignToCar(name, parseInt(e.target.value))}
-                          class="bg-black text-white text-[10px] rounded px-1 py-0.5 outline-none font-bold cursor-pointer"
+                          class="bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 outline-none font-semibold cursor-pointer"
                           defaultValue=""
                         >
                           <option value="" disabled>+ Car</option>
@@ -473,15 +480,14 @@
 
               {/* Driver Car Blocks */}
               <div class="space-y-4">
-                <span class="text-xs font-black uppercase tracking-wider text-black block">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-700 block">
                   🚘 Driver Car Blocks ({cars.length}):
                 </span>
 
                 {cars.length === 0 ? (
-                  <p class="text-xs text-black/40 italic">No drivers selected yet. Tick participants above to assign drivers.</p>
+                  <p class="text-xs text-slate-400 italic">No drivers selected yet. Tick participants above to assign drivers.</p>
                 ) : (
                   cars.map((car, carIdx) => {
-                    // FILTER REQUIREMENT: Only driver + passengers assigned to THIS car
                     const carPeople = [car.driver, ...(car.passengers || [])].filter(Boolean);
                     const routeStops = parseRouteStops(car.pickupRoute);
 
@@ -490,25 +496,24 @@
                         key={carIdx}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={() => draggedName && assignToCar(draggedName, carIdx)}
-                        class="bg-white border-2 border-[#002ce2] rounded-2xl p-4 space-y-4 relative shadow-md"
+                        class="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm"
                       >
-                        <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
                           <div>
-                            <span class="text-xs font-black text-[#002ce2] uppercase tracking-wider">{car.carId}</span>
-                            <h3 class="text-base font-extrabold text-black">Driver: {car.driver}</h3>
+                            <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">{car.carId}</span>
+                            <h3 class="text-sm font-bold text-slate-900">Driver: {car.driver}</h3>
                           </div>
                           <button 
                             onClick={() => toggleDriver(car.driver)}
-                            class="bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold px-2.5 py-1 rounded-md border border-red-300"
+                            class="bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-red-200 transition"
                           >
                             Untick Driver
                           </button>
                         </div>
 
-                        {/* Suggested Departure Time & Live Route Preview */}
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                           <div>
-                            <label class="block text-[10px] font-bold uppercase text-black/60 mb-1">
+                            <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                               Suggested Departure Time
                             </label>
                             <input 
@@ -518,13 +523,13 @@
                                 const val = e.target.value;
                                 setCars(cars.map((c, idx) => idx === carIdx ? { ...c, departureTime: val } : c));
                               }}
-                              class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-bold focus:border-[#002ce2] outline-none"
+                              class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium focus:border-blue-600 outline-none"
                               placeholder="01:30 PM"
                             />
                           </div>
 
                           <div>
-                            <label class="block text-[10px] font-bold uppercase text-black/60 mb-1">
+                            <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
                               Pickup Route String
                             </label>
                             <input 
@@ -534,7 +539,7 @@
                                 const val = e.target.value;
                                 setCars(cars.map((c, idx) => idx === carIdx ? { ...c, pickupRoute: val } : c));
                               }}
-                              class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-bold focus:border-[#002ce2] outline-none"
+                              class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium focus:border-blue-600 outline-none"
                               placeholder="Route ➔ Homestay"
                             />
                           </div>
@@ -543,59 +548,55 @@
                         {/* REARRANGEABLE ROUTE VISUALIZER */}
                         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
                           <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-extrabold text-black/60 uppercase">
+                            <span class="text-[11px] font-semibold text-slate-600 uppercase">
                               📍 Current Route Sequence (Rearrange / Delete Stops):
                             </span>
                             {routeStops.length > 0 && (
                               <button 
                                 type="button" 
                                 onClick={() => updateRouteFromStops(carIdx, ['Homestay'])}
-                                class="text-[10px] text-red-600 font-bold underline hover:text-red-800"
+                                class="text-[11px] text-red-600 font-medium underline hover:text-red-800"
                               >
                                 Reset Route
                               </button>
                             )}
                           </div>
 
-                          {/* Ordered Route Stop Badges */}
                           {routeStops.length === 0 ? (
-                            <p class="text-xs text-black/40 italic">No stops in route yet. Click stops below to build the sequence.</p>
+                            <p class="text-xs text-slate-400 italic">No stops in route yet. Click stops below to build the sequence.</p>
                           ) : (
                             <div class="flex flex-wrap gap-2 items-center">
                               {routeStops.map((stop, sIdx) => (
                                 <React.Fragment key={sIdx}>
-                                  <div class="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-xs font-black flex items-center gap-1.5 shadow-sm">
+                                  <div class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 flex items-center gap-1.5 shadow-sm">
                                     <span>{stop}</span>
                                     
-                                    {/* Move Left */}
                                     {sIdx > 0 && (
                                       <button 
                                         type="button" 
                                         onClick={() => moveStopInCar(carIdx, sIdx, -1)}
-                                        class="text-[10px] text-blue-600 font-black px-1 hover:bg-slate-100 rounded"
+                                        class="text-[10px] text-blue-600 font-bold px-1 hover:bg-slate-100 rounded"
                                         title="Move earlier"
                                       >
                                         ←
                                       </button>
                                     )}
 
-                                    {/* Move Right */}
                                     {sIdx < routeStops.length - 1 && (
                                       <button 
                                         type="button" 
                                         onClick={() => moveStopInCar(carIdx, sIdx, 1)}
-                                        class="text-[10px] text-blue-600 font-black px-1 hover:bg-slate-100 rounded"
+                                        class="text-[10px] text-blue-600 font-bold px-1 hover:bg-slate-100 rounded"
                                         title="Move later"
                                       >
                                         →
                                       </button>
                                     )}
 
-                                    {/* Delete Stop */}
                                     <button 
                                       type="button" 
                                       onClick={() => removeStopFromCar(carIdx, sIdx)}
-                                      class="text-[10px] text-red-600 font-black px-1 hover:bg-red-50 rounded"
+                                      class="text-[10px] text-red-600 font-bold px-1 hover:bg-red-50 rounded"
                                       title="Remove stop"
                                     >
                                       ✕
@@ -603,20 +604,19 @@
                                   </div>
 
                                   {sIdx < routeStops.length - 1 && (
-                                    <span class="text-xs font-black text-[#002ce2]">➔</span>
+                                    <span class="text-xs font-bold text-slate-400">➔</span>
                                   )}
                                 </React.Fragment>
                               ))}
                             </div>
                           )}
 
-                          {/* PASSENGER-SPECIFIC ADDRESS OPTIONS (STRICT FILTER) */}
+                          {/* PASSENGER-SPECIFIC ADDRESS OPTIONS */}
                           <div class="border-t border-slate-200 pt-3 space-y-2">
-                            <span class="text-[10px] font-extrabold text-black/60 uppercase block">
+                            <span class="text-[11px] font-semibold text-slate-600 uppercase block">
                               ➕ Add Stops (Only showing addresses for {car.driver}'s car):
                             </span>
 
-                            {/* Addresses restricted ONLY to people assigned to this car */}
                             <div class="flex flex-wrap gap-1.5">
                               {carPeople.map((personName, pIdx) => {
                                 const addr = addressMap[personName];
@@ -626,7 +626,7 @@
                                     key={pIdx}
                                     type="button"
                                     onClick={() => appendStopToCar(carIdx, `${personName} (${addr})`)}
-                                    class="bg-white hover:bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-[10px] font-bold text-black shadow-sm"
+                                    class="bg-white hover:bg-slate-100 border border-slate-200 rounded-md px-2 py-1 text-[11px] font-medium text-slate-800 shadow-sm transition"
                                   >
                                     + {personName}: {addr}
                                   </button>
@@ -634,14 +634,13 @@
                               })}
                             </div>
 
-                            {/* Common Assembly Points & Custom Stop */}
                             <div class="flex flex-wrap gap-1.5 items-center pt-1">
                               {['UM (Universiti Malaya)', 'KL Sentral', 'LRT Station'].map((point, ptIdx) => (
                                 <button
                                   key={ptIdx}
                                   type="button"
                                   onClick={() => appendStopToCar(carIdx, point)}
-                                  class="bg-[#f7f301] hover:bg-[#e0dc00] border border-black rounded-md px-2 py-1 text-[10px] font-extrabold text-black shadow-sm"
+                                  class="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm transition"
                                 >
                                   + {point}
                                 </button>
@@ -653,7 +652,7 @@
                                   placeholder="Custom stop..."
                                   value={customStopInputs[carIdx] || ''}
                                   onChange={(e) => setCustomStopInputs({ ...customStopInputs, [carIdx]: e.target.value })}
-                                  class="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] font-bold outline-none w-28"
+                                  class="bg-white border border-slate-200 rounded px-2 py-1 text-[11px] font-medium outline-none w-28"
                                 />
                                 <button
                                   type="button"
@@ -663,7 +662,7 @@
                                       setCustomStopInputs({ ...customStopInputs, [carIdx]: '' });
                                     }
                                   }}
-                                  class="bg-black text-white text-[10px] font-bold px-2 py-1 rounded"
+                                  class="bg-slate-800 text-white text-[11px] font-semibold px-2 py-1 rounded"
                                 >
                                   + Add
                                 </button>
@@ -673,19 +672,19 @@
                         </div>
 
                         {/* Passengers Drop Zone */}
-                        <div class="bg-slate-50 border-2 border-slate-200 rounded-xl p-3 min-h-[50px] space-y-2">
-                          <span class="text-[10px] font-bold text-black/40 uppercase block">
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 min-h-[50px] space-y-2">
+                          <span class="text-[11px] font-semibold text-slate-500 uppercase block">
                             Passengers in {car.driver}'s Car ({car.passengers ? car.passengers.length : 0}):
                           </span>
                           
                           {car.passengers && car.passengers.length > 0 ? (
                             <div class="flex flex-wrap gap-2">
                               {car.passengers.map((pName, pIdx) => (
-                                <div key={pIdx} class="scratch-block px-3 py-1.5 rounded-lg text-xs font-black text-black flex items-center gap-2">
+                                <div key={pIdx} class="scratch-block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-sm">
                                   <span>{pName}</span>
                                   <button 
                                     onClick={() => unassignPassenger(pName)}
-                                    class="bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-extrabold hover:bg-red-700"
+                                    class="bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold hover:bg-red-700"
                                   >
                                     ✕
                                   </button>
@@ -693,7 +692,7 @@
                               ))}
                             </div>
                           ) : (
-                            <p class="text-xs text-black/40 italic">Drop passenger blocks here or select from unassigned list above.</p>
+                            <p class="text-xs text-slate-400 italic">Drop passenger blocks here or select from unassigned list above.</p>
                           )}
                         </div>
 
@@ -710,71 +709,327 @@
     };
 
     // --- 4. Receipts and Bills Component ---
-    const BillsView = () => (
-      <div class="space-y-4">
-        <div>
-          <h2 class="text-2xl font-extrabold text-black mb-1">Receipts and Bills</h2>
-          <p class="text-xs text-black/60">Cost breakdown per participant</p>
-        </div>
+    const BillsView = () => {
+      const [participants, setParticipants] = useState([]);
+      const [bills, setBills] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving] = useState(false);
 
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs text-black">
-            <thead class="bg-[#002ce2] text-white uppercase text-[10px]">
-              <tr>
-                <th class="p-3">Item</th>
-                <th class="p-3 text-right">Total (MYR)</th>
-                <th class="p-3 text-right">Per Pax</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr>
-                <td class="p-3 font-medium">Homestay Booking</td>
-                <td class="p-3 text-right">1,200.00</td>
-                <td class="p-3 text-right font-bold text-[#002ce2]">200.00</td>
-              </tr>
-              <tr>
-                <td class="p-3 font-medium">Groceries & Hotpot</td>
-                <td class="p-3 text-right">360.00</td>
-                <td class="p-3 text-right font-bold text-[#002ce2]">60.00</td>
-              </tr>
-            </tbody>
-            <tfoot class="bg-[#f7f301] font-black text-black border-t border-slate-200">
-              <tr>
-                <td class="p-3 uppercase">TOTAL PAYABLE</td>
-                <td class="p-3 text-right">1,560.00</td>
-                <td class="p-3 text-right text-sm">260.00</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    );
+      useEffect(() => {
+        fetch(`${APPS_SCRIPT_URL}?action=getBillsData`)
+          .then((res) => res.json())
+          .then((data) => {
+            setParticipants(data.participants || []);
+            setBills(data.bills || []);
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error("Failed to load bills:", err);
+            setLoading(false);
+          });
+      }, []);
 
-    // --- 5. Common Info Component ---
+      const handleBillChange = (index, field, value) => {
+        const updated = bills.map((b, idx) => {
+          if (idx === index) {
+            return { ...b, [field]: value };
+          }
+          return b;
+        });
+        setBills(updated);
+      };
+
+      const addBillRow = () => {
+        const defaultPayer = participants.length > 0 ? participants[0] : 'Lim Zhi Ying';
+        setBills([...bills, { item: 'New Expense Item', paidBy: defaultPayer, totalAmount: 0 }]);
+      };
+
+      const deleteBillRow = (index) => {
+        setBills(bills.filter((_, idx) => idx !== index));
+      };
+
+      const saveBillsToSheet = async () => {
+        setSaving(true);
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "updateBills",
+              bills: bills
+            })
+          });
+          alert("Bills updated and synced to Google Sheets!");
+          setSaving(false);
+        } catch (err) {
+          console.error(err);
+          alert("Failed to save bills.");
+          setSaving(false);
+        }
+      };
+
+      const totalCost = bills.reduce((acc, b) => acc + (parseFloat(b.totalAmount) || 0), 0);
+      const paxCount = participants.length > 0 ? participants.length : 1;
+      const perPaxTotalShare = totalCost / paxCount;
+
+      const paidMap = {};
+      participants.forEach((p) => { paidMap[p] = 0; });
+      bills.forEach((b) => {
+        const payer = b.paidBy || (participants[0] || 'Lim Zhi Ying');
+        const amt = parseFloat(b.totalAmount) || 0;
+        paidMap[payer] = (paidMap[payer] || 0) + amt;
+      });
+
+      const balances = participants.map((p) => {
+        const paid = paidMap[p] || 0;
+        const net = paid - perPaxTotalShare;
+        return { name: p, paid, net };
+      });
+
+      const settlements = [];
+      let debtors = balances.filter((b) => b.net < -0.01).map((b) => ({ ...b, owes: Math.abs(b.net) }));
+      let creditors = balances.filter((b) => b.net > 0.01).map((b) => ({ ...b, gets: b.net }));
+
+      debtors.forEach((d) => {
+        creditors.forEach((c) => {
+          if (d.owes > 0.01 && c.gets > 0.01) {
+            const transfer = Math.min(d.owes, c.gets);
+            settlements.push({ from: d.name, to: c.name, amount: transfer });
+            d.owes -= transfer;
+            c.gets -= transfer;
+          }
+        });
+      });
+
+      return (
+        <div class="space-y-6">
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900 mb-1">Receipts and Bills</h2>
+              <p class="text-xs text-slate-500">Choose who paid, edit amounts directly, and auto-calculate net balances.</p>
+            </div>
+            <button 
+              onClick={saveBillsToSheet} 
+              disabled={saving || loading}
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
+            >
+              {saving ? "Syncing..." : "Save & Sync Bills"}
+            </button>
+          </div>
+
+          {loading ? (
+            <div class="p-6 text-center text-xs text-slate-400">Loading bills and calculating balances...</div>
+          ) : (
+            <div class="space-y-6">
+              
+              <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm space-y-2">
+                <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                  <h3 class="text-xs font-semibold uppercase text-slate-600 tracking-wider">1. Itemized Expenses</h3>
+                  <button 
+                    onClick={addBillRow}
+                    class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-3 py-1 rounded text-xs transition shadow-sm"
+                  >
+                    + Add Expense Item
+                  </button>
+                </div>
+
+                <div class="overflow-x-auto p-2">
+                  <table class="w-full text-left text-xs text-slate-800">
+                    <thead class="bg-slate-100 text-slate-600 uppercase text-[10px] font-semibold tracking-wider">
+                      <tr>
+                        <th class="p-2.5">Expense Item</th>
+                        <th class="p-2.5">Paid Upfront By</th>
+                        <th class="p-2.5 text-right">Total (MYR)</th>
+                        <th class="p-2.5 text-right">Per Pax ({paxCount} Pax)</th>
+                        <th class="p-2.5 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      {bills.length > 0 ? (
+                        bills.map((b, idx) => {
+                          const itemCost = parseFloat(b.totalAmount) || 0;
+                          return (
+                            <tr key={idx} class="hover:bg-slate-50">
+                              <td class="p-2">
+                                <input 
+                                  type="text" 
+                                  value={b.item} 
+                                  onChange={(e) => handleBillChange(idx, 'item', e.target.value)}
+                                  class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs text-slate-900 focus:border-blue-600 outline-none"
+                                />
+                              </td>
+
+                              <td class="p-2">
+                                <select 
+                                  value={b.paidBy || (participants[0] || '')} 
+                                  onChange={(e) => handleBillChange(idx, 'paidBy', e.target.value)}
+                                  class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs text-blue-600 focus:border-blue-600 outline-none cursor-pointer"
+                                >
+                                  {participants.map((person, pIdx) => (
+                                    <option key={pIdx} value={person}>{person}</option>
+                                  ))}
+                                </select>
+                              </td>
+
+                              <td class="p-2 text-right">
+                                <div class="flex items-center justify-end gap-1">
+                                  <span class="font-medium text-slate-400">RM</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={b.totalAmount} 
+                                    onChange={(e) => handleBillChange(idx, 'totalAmount', e.target.value)}
+                                    class="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-right text-xs text-slate-900 focus:border-blue-600 outline-none"
+                                  />
+                                </div>
+                              </td>
+
+                              <td class="p-2 text-right font-medium text-slate-600">
+                                RM {(itemCost / paxCount).toFixed(2)}
+                              </td>
+
+                              <td class="p-2 text-center">
+                                <button 
+                                  onClick={() => deleteBillRow(idx)}
+                                  class="text-red-600 font-semibold hover:bg-red-50 p-1 rounded text-xs"
+                                >
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="5" class="p-4 text-center text-slate-400 italic">No bills recorded. Click "+ Add Expense Item" above.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot class="bg-slate-100 font-bold text-slate-900 border-t border-slate-200">
+                      <tr>
+                        <td class="p-3 uppercase text-xs" colSpan="2">TOTAL EXPENSES</td>
+                        <td class="p-3 text-right">RM {totalCost.toFixed(2)}</td>
+                        <td class="p-3 text-right text-xs">RM {perPaxTotalShare.toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 space-y-3">
+                <span class="inline-block bg-blue-600 text-white text-[10px] font-semibold px-2.5 py-1 rounded uppercase tracking-wider">
+                  💸 Settlement Summary (Who Pays Who)
+                </span>
+                
+                {settlements.length > 0 ? (
+                  <div class="space-y-2 pt-1">
+                    {settlements.map((s, idx) => (
+                      <div key={idx} class="bg-white border border-slate-200 p-3 rounded-lg flex items-center justify-between text-xs font-semibold shadow-sm">
+                        <div class="flex items-center gap-2">
+                          <span class="bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200 text-[10px]">{s.from}</span>
+                          <span class="text-slate-400">➔</span>
+                          <span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">{s.to}</span>
+                        </div>
+                        <span class="text-xs font-bold text-blue-600">Pay RM {s.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p class="text-xs text-slate-500 font-medium italic">Everyone is even or no participants registered yet!</p>
+                )}
+              </div>
+
+              <div class="space-y-3">
+                <h3 class="text-xs font-semibold uppercase text-slate-600 tracking-wider">2. Individual Participant Balances</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {balances.map((b, idx) => {
+                    const isOwed = b.net > 0.01;
+                    const owes = b.net < -0.01;
+                    return (
+                      <div key={idx} class="bg-white border border-slate-200 p-3.5 rounded-xl flex justify-between items-center text-xs shadow-sm">
+                        <div>
+                          <p class="font-bold text-slate-900">{b.name}</p>
+                          <p class="text-[10px] text-slate-500">Paid Upfront: RM {b.paid.toFixed(2)} | Fair Share: RM {perPaxTotalShare.toFixed(2)}</p>
+                        </div>
+                        <div class="text-right">
+                          {isOwed && (
+                            <span class="bg-emerald-50 text-emerald-800 font-bold text-[11px] px-2.5 py-1 rounded border border-emerald-200 block">
+                              Gets Back RM {b.net.toFixed(2)}
+                            </span>
+                          )}
+                          {owes && (
+                            <span class="bg-red-50 text-red-800 font-bold text-[11px] px-2.5 py-1 rounded border border-red-200 block">
+                              Owes RM {Math.abs(b.net).toFixed(2)}
+                            </span>
+                          )}
+                          {!isOwed && !owes && (
+                            <span class="bg-slate-100 text-slate-600 font-medium text-[11px] px-2.5 py-1 rounded block">
+                              Settled (RM 0.00)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- 5. Enhanced Common Info Component ---
     const CommonView = () => (
-      <div class="space-y-5">
+      <div class="space-y-6">
         <div>
-          <h2 class="text-2xl font-extrabold text-black mb-1">Common Info</h2>
-          <p class="text-xs text-black/60">Essential homestay details and location links</p>
+          <h2 class="text-xl font-bold text-slate-900 mb-1">Common Info</h2>
+          <p class="text-xs text-slate-500">Location, check-in details, Wi-Fi, photo drive album, contacts, and house rules.</p>
         </div>
 
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
-          <div class="border-b border-slate-200 pb-3">
-            <span class="inline-block bg-[#f7f301] text-black text-xs font-black px-2.5 py-1 rounded uppercase tracking-wider mb-2">
+        {/* NEW FEATURE: Shared Google Drive Folder for Photos/Videos */}
+        <div class="bg-blue-50/60 border border-blue-200 rounded-xl p-4 space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">📸</span>
+            <div>
+              <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Trip Photo & Video Album</h3>
+              <p class="text-xs text-slate-600 mt-0.5">Upload and share photos or videos taken during our trip!</p>
+            </div>
+          </div>
+          <a 
+            href={DRIVE_FOLDER_URL} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg text-xs transition shadow-sm"
+          >
+            <span class="flex items-center gap-2">
+              <span>📁 Open Shared Google Drive Folder</span>
+            </span>
+            <span class="text-sm">➔</span>
+          </a>
+        </div>
+
+        {/* Location & Maps */}
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm">
+          <div class="border-b border-slate-100 pb-3">
+            <span class="inline-block bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider mb-2">
               4BALANCE HOMESTAY @ KUALA LUMPUR
             </span>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-black/50 mt-1">Full Address</h3>
-            <p class="text-sm font-bold text-black mt-0.5">
+            <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Full Address</h3>
+            <p class="text-xs font-bold text-slate-900 mt-0.5">
               A23-1, Jalan Hang Tuah 3, Taman Salak Selatan, 57100, KL
             </p>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
             <a 
               href="https://waze.com/ul/hw283d17xq" 
               target="_blank" 
               rel="noopener noreferrer"
-              class="flex items-center justify-between bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold p-3.5 rounded-lg text-xs transition shadow-md shadow-[#002ce2]/20"
+              class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm"
             >
               <span>Open in Waze</span>
               <span class="text-sm">➔</span>
@@ -784,13 +1039,107 @@
               href="https://maps.app.goo.gl/R9hmgxk72atyjKuh7?g_st=com.google.maps.preview.copy" 
               target="_blank" 
               rel="noopener noreferrer"
-              class="flex items-center justify-between bg-black hover:bg-slate-800 text-white font-extrabold p-3.5 rounded-lg text-xs transition shadow-md"
+              class="flex items-center justify-between bg-slate-900 hover:bg-slate-800 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm"
             >
               <span>Open in Google Maps</span>
               <span class="text-sm">➔</span>
             </a>
           </div>
         </div>
+
+        {/* Wi-Fi & Key Door Access */}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">📶 Wi-Fi Access</span>
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1">
+              <p class="text-xs text-slate-600 font-medium">Network: <strong class="text-slate-900 font-bold">4Balance Homestay</strong></p>
+              <p class="text-xs text-slate-600 font-medium">Password: <strong class="text-blue-600 font-bold tracking-wide">enjoylife666</strong></p>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">🔑 Door Access & Arrival</span>
+            <p class="text-xs text-slate-700 font-normal leading-relaxed">
+              Located next to <strong>Ming Hin Restaurant</strong> (door is on the left). Key in the passcode ending with <strong>#</strong> to open security door. 
+              Passcode sent by customer service by <strong>2:30 PM</strong> on check-in date.
+            </p>
+          </div>
+        </div>
+
+        {/* Timings & Persons in Charge */}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">⏰ Check-In / Check-Out</span>
+            <div class="text-xs space-y-1 text-slate-700 font-normal">
+              <p>• <strong>Check-In:</strong> After 3:00 PM <span class="text-slate-400 text-[10px] block">(Early check-in RM100/hr subject to availability)</span></p>
+              <p>• <strong>Check-Out:</strong> Before 11:00 AM <span class="text-slate-400 text-[10px] block">(Late check-out RM100/hr subject to availability)</span></p>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">📞 Persons in Charge</span>
+            <div class="text-xs space-y-1 text-slate-700">
+              <p class="font-medium">Customer Service: <a href="tel:0163493866" class="text-blue-600 underline font-semibold">016-349 3866</a></p>
+              <p class="font-medium">Patrick: <a href="tel:01159423866" class="text-blue-600 underline font-semibold">011-5942 3866</a></p>
+              <p class="font-medium">Nathan: <a href="tel:0177898363" class="text-blue-600 underline font-semibold">017-789 8363</a></p>
+            </div>
+          </div>
+        </div>
+
+        {/* House Rules & Fines Card */}
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm">
+          <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              ⚠️ House Rules & Regulations
+            </span>
+            <span class="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+              Fines up to RM8,500
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-800">
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🚫 Indoor Smoking</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🍺 Over Drinking</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🤫 Loud Noise at Balcony after 11 PM</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🔊 Over Blasting Music</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🚫 Illegal Drugs</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 3,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🛋️ Relocating Furniture</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>📌 Taping / Glueing Walls</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 500 fine</span>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
+              <span>🍈 Durian on Premises</span>
+              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs font-normal text-slate-600 space-y-1">
+            <p>👟 <strong>No Shoes:</strong> Strictly NO wearing shoes inside the premise.</p>
+            <p>🛋️ <strong>Care Rule:</strong> Please dry yourself completely before sitting on the sofa.</p>
+            <p>⚡ <strong>Power & Water:</strong> Switch off all electronics, devices, and water before leaving.</p>
+            <p>💥 <strong>Damages:</strong> Any damaged items will be charged at full replacement price.</p>
+          </div>
+        </div>
+
       </div>
     );
 
@@ -810,7 +1159,7 @@
       }, []);
 
       const navTabs = [
-        { id: 'address', label: 'Addresses' },
+        { id: 'address', label: 'Home' },
         { id: 'agenda', label: 'Agenda' },
         { id: 'transport', label: 'Transportation' },
         { id: 'bills', label: 'Receipts and Bills' },
@@ -820,8 +1169,8 @@
       return (
         <div class="min-h-screen flex flex-col justify-between relative z-10 px-6 py-6 max-w-7xl mx-auto">
           <header class="flex justify-between items-center py-4 border-b border-slate-200 mb-8">
-            <div class="text-2xl font-black tracking-tight text-black">
-              Ehbnb<span class="text-[#002ce2]">.com</span>
+            <div class="text-xl font-bold tracking-tight text-slate-900">
+              Ehbnb<span class="text-blue-600">.com</span>
             </div>
 
             <nav class="flex flex-wrap gap-2 md:gap-3">
@@ -829,10 +1178,10 @@
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  class={`text-xs md:text-sm font-bold px-3.5 py-2 rounded-lg transition-all ${
+                  class={`text-xs md:text-sm font-semibold px-3.5 py-2 rounded-lg transition-all ${
                     activeTab === tab.id
-                      ? 'bg-[#002ce2] text-white shadow-md shadow-[#002ce2]/20'
-                      : 'text-black/70 hover:text-black hover:bg-slate-100'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
                   {tab.label}
@@ -843,28 +1192,28 @@
 
           <main class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center my-auto py-4">
             <div class="lg:col-span-5 space-y-6">
-              <span class="inline-block bg-[#f7f301] text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-slate-200">
+              <span class="inline-block bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider border border-blue-200">
                 4Balance Homestay
               </span>
               
-              <h1 class="text-5xl md:text-6xl font-black text-black tracking-tight leading-tight">
-                Ehbnb<span class="text-[#002ce2]">.com</span>
+              <h1 class="text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                Ehbnb<span class="text-blue-600">.com</span>
               </h1>
               
-              <p class="text-xl text-black/80 font-bold tracking-wide">
+              <p class="text-lg text-slate-600 font-semibold tracking-wide">
                 You go, I go
               </p>
             </div>
 
             <div class="lg:col-span-7">
-              <div class="bg-white border-2 border-[#002ce2] rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+              <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
                 <div class="flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
                   <div class="flex gap-2">
-                    <span class="w-3 h-3 rounded-full bg-[#f7f301] border border-slate-300"></span>
-                    <span class="w-3 h-3 rounded-full bg-[#002ce2]"></span>
-                    <span class="w-3 h-3 rounded-full bg-slate-300"></span>
+                    <span class="w-3 h-3 rounded-full bg-slate-200 border border-slate-300"></span>
+                    <span class="w-3 h-3 rounded-full bg-blue-600"></span>
+                    <span class="w-3 h-3 rounded-full bg-slate-200"></span>
                   </div>
-                  <span class="text-[10px] font-mono font-bold text-black/40 uppercase tracking-widest">Ehbnb Dashboard</span>
+                  <span class="text-[10px] font-mono font-semibold text-slate-400 uppercase tracking-widest">Ehbnb Dashboard</span>
                 </div>
 
                 {activeTab === 'address' && <AddressForm autoEmail={autoEmail} />}
@@ -876,7 +1225,7 @@
             </div>
           </main>
 
-          <footer class="text-center text-xs text-black/40 py-4 relative z-10 font-medium">
+          <footer class="text-center text-xs text-slate-400 py-4 relative z-10 font-medium">
             Ehbnb.com • 4Balance Homestay Sri Petaling
           </footer>
         </div>
