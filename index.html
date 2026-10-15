@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ehbnb.com - 4Balance Homestay</title>
+  
+  <!-- Google Font: Open Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background-color: #ffffff;
+      color: #000000;
+    }
+    .scratch-block {
+      background-color: #f7f301;
+      border: 2px solid #000000;
+      box-shadow: 3px 3px 0px #000000;
+      cursor: grab;
+      user-select: none;
+    }
+    .scratch-block:active {
+      cursor: grabbing;
+      box-shadow: 1px 1px 0px #000000;
+      transform: translate(2px, 2px);
+    }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden relative bg-white text-black">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxDCrgayM9o_Q4UnZ2JwcBfoisVapls_3loCM81kMt4gri8peztk95DbIQXmI8rSVLIg/exec";
+
+    // Helper to format ISO date-time strings to clean times
+    const formatTimeDisplay = (timeVal) => {
+      if (!timeVal) return '01:30 PM';
+      if (typeof timeVal === 'string' && timeVal.includes('T')) {
+        try {
+          const d = new Date(timeVal);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        } catch(e) {}
+      }
+      return timeVal;
+    };
+
+    // --- 1. Address Submission Component ---
+    const AddressForm = ({ autoEmail }) => {
+      const [fullName, setFullName] = useState('');
+      const [address, setAddress] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [submitted, setSubmitted] = useState(false);
+      const [warningMsg, setWarningMsg] = useState('');
+
+      const startsWithCapital = (str) => {
+        if (!str || str.trim().length === 0) return false;
+        const firstChar = str.trim().charAt(0);
+        return firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setWarningMsg('');
+
+        const isNameCapitalized = startsWithCapital(fullName);
+        const isAddressCapitalized = startsWithCapital(address);
+
+        if (!isNameCapitalized || !isAddressCapitalized) {
+          let error = "Capitalization warning: ";
+          if (!isNameCapitalized && !isAddressCapitalized) {
+            error += "The first letter of both Full Name and Pickup Address must be capitalized (e.g. Lim Zhi Ying and Ehsan Ria).";
+          } else if (!isNameCapitalized) {
+            error += "The first letter of Full Name must be capitalized (e.g. Lim Zhi Ying).";
+          } else {
+            error += "The first letter of Pickup Address must be capitalized (e.g. Ehsan Ria).";
+          }
+          setWarningMsg(error);
+          return;
+        }
+
+        setLoading(true);
+
+        const payload = JSON.stringify({
+          action: "submitAddress",
+          email: autoEmail,
+          fullName: fullName.trim(),
+          address: address.trim()
+        });
+
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: payload
+          });
+          
+          setLoading(false);
+          setSubmitted(true);
+        } catch (err) {
+          console.error(err);
+          alert("Submission failed. Please check network connection.");
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div class="space-y-5">
+          <div>
+            <h2 class="text-2xl font-extrabold text-black mb-1">Submit Pickup Address</h2>
+            <p class="text-xs text-black/60">Submitting with an existing Full Name will overwrite your previous entry.</p>
+          </div>
+
+          {warningMsg && (
+            <div class="bg-red-50 border-2 border-red-500 p-4 rounded-xl text-red-700 text-xs font-bold space-y-1">
+              <p class="uppercase text-[10px] tracking-wider font-extrabold text-red-800">⚠️ Action Required</p>
+              <p>{warningMsg}</p>
+            </div>
+          )}
+
+          {submitted ? (
+            <div class="bg-[#002ce2]/10 border-2 border-[#002ce2] p-5 rounded-xl space-y-2">
+              <h3 class="text-lg font-bold text-[#002ce2]">✓ Address Submitted / Overwritten</h3>
+              <p class="text-xs text-black/80">Your row matching "<strong>{fullName}</strong>" in Google Sheets has been updated.</p>
+              <button onClick={() => setSubmitted(false)} class="text-xs text-[#002ce2] font-bold underline mt-2 block">
+                Edit address or submit another
+              </button>
+            </div>
+          ) : (
+            <form class="space-y-4" onSubmit={handleSubmit}>
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-black mb-1">Full Name</label>
+                <input 
+                  required 
+                  value={fullName} 
+                  onChange={(e) => setFullName(e.target.value)} 
+                  type="text" 
+                  class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-black text-sm focus:border-[#002ce2] focus:bg-white outline-none transition" 
+                  placeholder="Lim Zhi Ying" 
+                />
+                <span class="text-[10px] text-black/50 mt-0.5 block">Example: Lim Zhi Ying</span>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-black mb-1">Pickup Address</label>
+                <textarea 
+                  required 
+                  value={address} 
+                  onChange={(e) => setAddress(e.target.value)} 
+                  class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-black text-sm focus:border-[#002ce2] focus:bg-white outline-none h-28 transition" 
+                  placeholder="Ehsan Ria"
+                ></textarea>
+                <span class="text-[10px] text-black/50 mt-0.5 block">Example: Ehsan Ria</span>
+              </div>
+
+              <button 
+                disabled={loading} 
+                type="submit" 
+                class="w-full bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold py-3.5 rounded-lg transition duration-200 text-sm tracking-wide disabled:opacity-50 shadow-md shadow-[#002ce2]/20"
+              >
+                {loading ? "Saving to Spreadsheet..." : "Submit Address"}
+              </button>
+            </form>
+          )}
+        </div>
+      );
+    };
+
+    // --- 2. Live Agenda Component ---
+    const AgendaView = () => {
+      const [agendaItems, setAgendaItems] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        fetch(`${APPS_SCRIPT_URL}?action=getAgenda`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (Array.isArray(data) && data.length > 0) {
+              setAgendaItems(data);
+            }
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error("Failed to fetch agenda:", err);
+            setLoading(false);
+          });
+      }, []);
+
+      return (
+        <div class="space-y-4">
+          <div>
+            <h2 class="text-2xl font-extrabold text-black mb-1">Trip Agenda</h2>
+            <p class="text-xs text-black/60">Live schedule from master spreadsheet</p>
+          </div>
+
+          {loading ? (
+            <div class="p-6 text-center text-xs text-black/50">Loading agenda from spreadsheet...</div>
+          ) : agendaItems.length > 0 ? (
+            <div class="space-y-3">
+              {agendaItems.map((item, index) => (
+                <div key={index} class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div class="flex justify-between items-center mb-1">
+                    <span class={`inline-block text-white text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                      item.status === 'Tentative' ? 'bg-[#f7f301] text-black' : 'bg-[#002ce2]'
+                    }`}>
+                      {item.day || 'Day 1'} {item.time ? `• ${formatTimeDisplay(item.time)}` : ''}
+                    </span>
+                    <span class="text-[10px] font-bold text-black/50 uppercase">{item.status || 'Confirmed'}</span>
+                  </div>
+                  <h3 class="text-base font-bold text-black mt-1">{item.activity}</h3>
+                  {item.details && <p class="text-xs text-black/70 mt-1">{item.details}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="p-4 text-center text-xs text-black/50">No agenda items found in spreadsheet.</div>
+          )}
+        </div>
+      );
+    };
+
+    // --- 3. "Who fetch us ya?" Component ---
+    const TransportView = () => {
+      const [participants, setParticipants] = useState([]);
+      const [addressMap, setAddressMap] = useState({});
+      const [cars, setCars] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving] = useState(false);
+      const [draggedName, setDraggedName] = useState(null);
+      const [customStopInputs, setCustomStopInputs] = useState({});
+
+      const loadData = () => {
+        setLoading(true);
+        fetch(`${APPS_SCRIPT_URL}?action=getTransportData`)
+          .then((res) => res.json())
+          .then((data) => {
+            setParticipants(data.participants || []);
+            setAddressMap(data.addressMap || {});
+            
+            // Clean up departure time formatting
+            const cleanedCars = (data.cars || []).map((c) => ({
+              ...c,
+              departureTime: formatTimeDisplay(c.departureTime)
+            }));
+            setCars(cleanedCars);
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error(err);
+            setLoading(false);
+          });
+      };
+
+      useEffect(() => {
+        loadData();
+      }, []);
+
+      const toggleDriver = (personName) => {
+        const isCurrentlyDriver = cars.some((c) => c.driver === personName);
+
+        if (isCurrentlyDriver) {
+          const updatedCars = cars.filter((c) => c.driver !== personName);
+          setCars(updatedCars);
+        } else {
+          const newCarId = `Car 0${cars.length + 1}`;
+          const newCar = {
+            carId: newCarId,
+            driver: personName,
+            departureTime: '01:30 PM',
+            pickupRoute: 'Homestay',
+            passengers: [],
+            status: 'Confirmed'
+          };
+          const updatedCars = cars.map((c) => ({
+            ...c,
+            passengers: (c.passengers || []).filter((p) => p !== personName)
+          }));
+          setCars([...updatedCars, newCar]);
+        }
+      };
+
+      const driverNames = cars.map((c) => c.driver);
+      const assignedPassengerNames = cars.flatMap((c) => c.passengers || []);
+      const unassignedPassengers = participants.filter(
+        (p) => !driverNames.includes(p) && !assignedPassengerNames.includes(p)
+      );
+
+      const assignToCar = (passengerName, carIndex) => {
+        const updatedCars = cars.map((car, idx) => {
+          const cleaned = (car.passengers || []).filter((p) => p !== passengerName);
+          if (idx === carIndex) {
+            return { ...car, passengers: [...cleaned, passengerName] };
+          }
+          return { ...car, passengers: cleaned };
+        });
+        setCars(updatedCars);
+      };
+
+      const unassignPassenger = (passengerName) => {
+        const updatedCars = cars.map((car) => ({
+          ...car,
+          passengers: (car.passengers || []).filter((p) => p !== passengerName)
+        }));
+        setCars(updatedCars);
+      };
+
+      // --- ROUTE BUILDER & REARRANGE HELPERS ---
+      const parseRouteStops = (routeStr) => {
+        if (!routeStr) return [];
+        return routeStr.split(' ➔ ').map((s) => s.trim()).filter(Boolean);
+      };
+
+      const updateRouteFromStops = (carIdx, stopsArray) => {
+        const newRouteStr = stopsArray.join(' ➔ ');
+        setCars(cars.map((c, idx) => idx === carIdx ? { ...c, pickupRoute: newRouteStr } : c));
+      };
+
+      const appendStopToCar = (carIdx, stopName) => {
+        if (!stopName) return;
+        const currentStops = parseRouteStops(cars[carIdx].pickupRoute);
+        const homestayIdx = currentStops.indexOf('Homestay');
+        
+        if (homestayIdx !== -1) {
+          currentStops.splice(homestayIdx, 0, stopName);
+        } else {
+          currentStops.push(stopName);
+          currentStops.push('Homestay');
+        }
+        updateRouteFromStops(carIdx, currentStops);
+      };
+
+      const removeStopFromCar = (carIdx, stopIdx) => {
+        const currentStops = parseRouteStops(cars[carIdx].pickupRoute);
+        currentStops.splice(stopIdx, 1);
+        updateRouteFromStops(carIdx, currentStops);
+      };
+
+      const moveStopInCar = (carIdx, stopIdx, direction) => {
+        const currentStops = parseRouteStops(cars[carIdx].pickupRoute);
+        const targetIdx = stopIdx + direction;
+        if (targetIdx < 0 || targetIdx >= currentStops.length) return;
+        
+        const temp = currentStops[stopIdx];
+        currentStops[stopIdx] = currentStops[targetIdx];
+        currentStops[targetIdx] = temp;
+        updateRouteFromStops(carIdx, currentStops);
+      };
+
+      const saveToSheet = async () => {
+        setSaving(true);
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "updateTransport",
+              cars: cars
+            })
+          });
+          alert("Transportation details synced to Google Sheets!");
+          setSaving(false);
+        } catch (err) {
+          console.error(err);
+          alert("Failed to save to spreadsheet.");
+          setSaving(false);
+        }
+      };
+
+      return (
+        <div class="space-y-6">
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-2xl font-extrabold text-black mb-1">Who fetch us ya?</h2>
+              <p class="text-xs text-black/60">Choose drivers, assign passenger blocks, and arrange pickup stops.</p>
+            </div>
+            <button 
+              onClick={saveToSheet} 
+              disabled={saving || loading}
+              class="bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold px-4 py-2 rounded-lg text-xs transition shadow-md shadow-[#002ce2]/20 disabled:opacity-50"
+            >
+              {saving ? "Syncing..." : "Save & Sync to Sheet"}
+            </button>
+          </div>
+
+          {loading ? (
+            <div class="p-6 text-center text-xs text-black/50">Loading participants & drivers...</div>
+          ) : (
+            <div class="space-y-6">
+              
+              {/* Driver Selection */}
+              <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 space-y-3">
+                <span class="text-xs font-black uppercase tracking-wider text-black block">
+                  🚗 Choose Who is Driver (Tick / Untick):
+                </span>
+                
+                {participants.length === 0 ? (
+                  <p class="text-xs text-black/40 italic">No registered participants found yet. Submit addresses first!</p>
+                ) : (
+                  <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {participants.map((person, idx) => {
+                      const isDriver = driverNames.includes(person);
+                      return (
+                        <label 
+                          key={idx} 
+                          class={`flex items-center gap-2 p-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
+                            isDriver 
+                              ? 'bg-[#002ce2] text-white border-[#002ce2]' 
+                              : 'bg-white text-black border-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={isDriver} 
+                            onChange={() => toggleDriver(person)}
+                            class="w-4 h-4 accent-[#f7f301] cursor-pointer" 
+                          />
+                          <span class="truncate">{person} {isDriver ? '(Driver)' : ''}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Unassigned Passenger Scratch Blocks */}
+              <div class="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-4">
+                <span class="text-[10px] font-black uppercase tracking-wider text-black/50 block mb-2">
+                  🧩 Unassigned Passenger Blocks ({unassignedPassengers.length})
+                </span>
+                
+                {unassignedPassengers.length === 0 ? (
+                  <p class="text-xs text-black/40 italic">All passengers are assigned or selected as drivers!</p>
+                ) : (
+                  <div class="flex flex-wrap gap-2">
+                    {unassignedPassengers.map((name, i) => (
+                      <div
+                        key={i}
+                        draggable
+                        onDragStart={() => setDraggedName(name)}
+                        class="scratch-block px-3 py-1.5 rounded-lg text-xs font-black text-black flex items-center gap-2"
+                      >
+                        <span>⋮⋮ {name}</span>
+                        <select 
+                          onChange={(e) => e.target.value !== "" && assignToCar(name, parseInt(e.target.value))}
+                          class="bg-black text-white text-[10px] rounded px-1 py-0.5 outline-none font-bold cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>+ Car</option>
+                          {cars.map((c, cIdx) => (
+                            <option key={cIdx} value={cIdx}>{c.driver}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Driver Car Blocks */}
+              <div class="space-y-4">
+                <span class="text-xs font-black uppercase tracking-wider text-black block">
+                  🚘 Driver Car Blocks ({cars.length}):
+                </span>
+
+                {cars.length === 0 ? (
+                  <p class="text-xs text-black/40 italic">No drivers selected yet. Tick participants above to assign drivers.</p>
+                ) : (
+                  cars.map((car, carIdx) => {
+                    // FILTER REQUIREMENT: Only driver + passengers assigned to THIS car
+                    const carPeople = [car.driver, ...(car.passengers || [])].filter(Boolean);
+                    const routeStops = parseRouteStops(car.pickupRoute);
+
+                    return (
+                      <div 
+                        key={carIdx}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => draggedName && assignToCar(draggedName, carIdx)}
+                        class="bg-white border-2 border-[#002ce2] rounded-2xl p-4 space-y-4 relative shadow-md"
+                      >
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                          <div>
+                            <span class="text-xs font-black text-[#002ce2] uppercase tracking-wider">{car.carId}</span>
+                            <h3 class="text-base font-extrabold text-black">Driver: {car.driver}</h3>
+                          </div>
+                          <button 
+                            onClick={() => toggleDriver(car.driver)}
+                            class="bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold px-2.5 py-1 rounded-md border border-red-300"
+                          >
+                            Untick Driver
+                          </button>
+                        </div>
+
+                        {/* Suggested Departure Time & Live Route Preview */}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <label class="block text-[10px] font-bold uppercase text-black/60 mb-1">
+                              Suggested Departure Time
+                            </label>
+                            <input 
+                              type="text" 
+                              value={car.departureTime} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCars(cars.map((c, idx) => idx === carIdx ? { ...c, departureTime: val } : c));
+                              }}
+                              class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-bold focus:border-[#002ce2] outline-none"
+                              placeholder="01:30 PM"
+                            />
+                          </div>
+
+                          <div>
+                            <label class="block text-[10px] font-bold uppercase text-black/60 mb-1">
+                              Pickup Route String
+                            </label>
+                            <input 
+                              type="text" 
+                              value={car.pickupRoute} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCars(cars.map((c, idx) => idx === carIdx ? { ...c, pickupRoute: val } : c));
+                              }}
+                              class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-bold focus:border-[#002ce2] outline-none"
+                              placeholder="Route ➔ Homestay"
+                            />
+                          </div>
+                        </div>
+
+                        {/* REARRANGEABLE ROUTE VISUALIZER */}
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                          <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-extrabold text-black/60 uppercase">
+                              📍 Current Route Sequence (Rearrange / Delete Stops):
+                            </span>
+                            {routeStops.length > 0 && (
+                              <button 
+                                type="button" 
+                                onClick={() => updateRouteFromStops(carIdx, ['Homestay'])}
+                                class="text-[10px] text-red-600 font-bold underline hover:text-red-800"
+                              >
+                                Reset Route
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Ordered Route Stop Badges */}
+                          {routeStops.length === 0 ? (
+                            <p class="text-xs text-black/40 italic">No stops in route yet. Click stops below to build the sequence.</p>
+                          ) : (
+                            <div class="flex flex-wrap gap-2 items-center">
+                              {routeStops.map((stop, sIdx) => (
+                                <React.Fragment key={sIdx}>
+                                  <div class="bg-white border-2 border-black rounded-lg px-2.5 py-1 text-xs font-black flex items-center gap-1.5 shadow-sm">
+                                    <span>{stop}</span>
+                                    
+                                    {/* Move Left */}
+                                    {sIdx > 0 && (
+                                      <button 
+                                        type="button" 
+                                        onClick={() => moveStopInCar(carIdx, sIdx, -1)}
+                                        class="text-[10px] text-blue-600 font-black px-1 hover:bg-slate-100 rounded"
+                                        title="Move earlier"
+                                      >
+                                        ←
+                                      </button>
+                                    )}
+
+                                    {/* Move Right */}
+                                    {sIdx < routeStops.length - 1 && (
+                                      <button 
+                                        type="button" 
+                                        onClick={() => moveStopInCar(carIdx, sIdx, 1)}
+                                        class="text-[10px] text-blue-600 font-black px-1 hover:bg-slate-100 rounded"
+                                        title="Move later"
+                                      >
+                                        →
+                                      </button>
+                                    )}
+
+                                    {/* Delete Stop */}
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeStopFromCar(carIdx, sIdx)}
+                                      class="text-[10px] text-red-600 font-black px-1 hover:bg-red-50 rounded"
+                                      title="Remove stop"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+
+                                  {sIdx < routeStops.length - 1 && (
+                                    <span class="text-xs font-black text-[#002ce2]">➔</span>
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* PASSENGER-SPECIFIC ADDRESS OPTIONS (STRICT FILTER) */}
+                          <div class="border-t border-slate-200 pt-3 space-y-2">
+                            <span class="text-[10px] font-extrabold text-black/60 uppercase block">
+                              ➕ Add Stops (Only showing addresses for {car.driver}'s car):
+                            </span>
+
+                            {/* Addresses restricted ONLY to people assigned to this car */}
+                            <div class="flex flex-wrap gap-1.5">
+                              {carPeople.map((personName, pIdx) => {
+                                const addr = addressMap[personName];
+                                if (!addr) return null;
+                                return (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => appendStopToCar(carIdx, `${personName} (${addr})`)}
+                                    class="bg-white hover:bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-[10px] font-bold text-black shadow-sm"
+                                  >
+                                    + {personName}: {addr}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Common Assembly Points & Custom Stop */}
+                            <div class="flex flex-wrap gap-1.5 items-center pt-1">
+                              {['UM (Universiti Malaya)', 'KL Sentral', 'LRT Station'].map((point, ptIdx) => (
+                                <button
+                                  key={ptIdx}
+                                  type="button"
+                                  onClick={() => appendStopToCar(carIdx, point)}
+                                  class="bg-[#f7f301] hover:bg-[#e0dc00] border border-black rounded-md px-2 py-1 text-[10px] font-extrabold text-black shadow-sm"
+                                >
+                                  + {point}
+                                </button>
+                              ))}
+
+                              <div class="flex gap-1 items-center">
+                                <input 
+                                  type="text"
+                                  placeholder="Custom stop..."
+                                  value={customStopInputs[carIdx] || ''}
+                                  onChange={(e) => setCustomStopInputs({ ...customStopInputs, [carIdx]: e.target.value })}
+                                  class="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] font-bold outline-none w-28"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (customStopInputs[carIdx]) {
+                                      appendStopToCar(carIdx, customStopInputs[carIdx]);
+                                      setCustomStopInputs({ ...customStopInputs, [carIdx]: '' });
+                                    }
+                                  }}
+                                  class="bg-black text-white text-[10px] font-bold px-2 py-1 rounded"
+                                >
+                                  + Add
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Passengers Drop Zone */}
+                        <div class="bg-slate-50 border-2 border-slate-200 rounded-xl p-3 min-h-[50px] space-y-2">
+                          <span class="text-[10px] font-bold text-black/40 uppercase block">
+                            Passengers in {car.driver}'s Car ({car.passengers ? car.passengers.length : 0}):
+                          </span>
+                          
+                          {car.passengers && car.passengers.length > 0 ? (
+                            <div class="flex flex-wrap gap-2">
+                              {car.passengers.map((pName, pIdx) => (
+                                <div key={pIdx} class="scratch-block px-3 py-1.5 rounded-lg text-xs font-black text-black flex items-center gap-2">
+                                  <span>{pName}</span>
+                                  <button 
+                                    onClick={() => unassignPassenger(pName)}
+                                    class="bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-extrabold hover:bg-red-700"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p class="text-xs text-black/40 italic">Drop passenger blocks here or select from unassigned list above.</p>
+                          )}
+                        </div>
+
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- 4. Receipts and Bills Component ---
+    const BillsView = () => (
+      <div class="space-y-4">
+        <div>
+          <h2 class="text-2xl font-extrabold text-black mb-1">Receipts and Bills</h2>
+          <p class="text-xs text-black/60">Cost breakdown per participant</p>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <table class="w-full text-left text-xs text-black">
+            <thead class="bg-[#002ce2] text-white uppercase text-[10px]">
+              <tr>
+                <th class="p-3">Item</th>
+                <th class="p-3 text-right">Total (MYR)</th>
+                <th class="p-3 text-right">Per Pax</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr>
+                <td class="p-3 font-medium">Homestay Booking</td>
+                <td class="p-3 text-right">1,200.00</td>
+                <td class="p-3 text-right font-bold text-[#002ce2]">200.00</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-medium">Groceries & Hotpot</td>
+                <td class="p-3 text-right">360.00</td>
+                <td class="p-3 text-right font-bold text-[#002ce2]">60.00</td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-[#f7f301] font-black text-black border-t border-slate-200">
+              <tr>
+                <td class="p-3 uppercase">TOTAL PAYABLE</td>
+                <td class="p-3 text-right">1,560.00</td>
+                <td class="p-3 text-right text-sm">260.00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    );
+
+    // --- 5. Common Info Component ---
+    const CommonView = () => (
+      <div class="space-y-5">
+        <div>
+          <h2 class="text-2xl font-extrabold text-black mb-1">Common Info</h2>
+          <p class="text-xs text-black/60">Essential homestay details and location links</p>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+          <div class="border-b border-slate-200 pb-3">
+            <span class="inline-block bg-[#f7f301] text-black text-xs font-black px-2.5 py-1 rounded uppercase tracking-wider mb-2">
+              4BALANCE HOMESTAY @ KUALA LUMPUR
+            </span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-black/50 mt-1">Full Address</h3>
+            <p class="text-sm font-bold text-black mt-0.5">
+              A23-1, Jalan Hang Tuah 3, Taman Salak Selatan, 57100, KL
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <a 
+              href="https://waze.com/ul/hw283d17xq" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="flex items-center justify-between bg-[#002ce2] hover:bg-[#0040e4] text-white font-extrabold p-3.5 rounded-lg text-xs transition shadow-md shadow-[#002ce2]/20"
+            >
+              <span>Open in Waze</span>
+              <span class="text-sm">➔</span>
+            </a>
+
+            <a 
+              href="https://maps.app.goo.gl/R9hmgxk72atyjKuh7?g_st=com.google.maps.preview.copy" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="flex items-center justify-between bg-black hover:bg-slate-800 text-white font-extrabold p-3.5 rounded-lg text-xs transition shadow-md"
+            >
+              <span>Open in Google Maps</span>
+              <span class="text-sm">➔</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+
+    // --- Main Layout ---
+    const App = () => {
+      const [activeTab, setActiveTab] = useState('address');
+      const [autoEmail, setAutoEmail] = useState('');
+
+      useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const emailFromParam = params.get('email');
+        if (emailFromParam) {
+          setAutoEmail(emailFromParam.toLowerCase());
+        } else {
+          setAutoEmail("23005076@siswa.um.edu.my");
+        }
+      }, []);
+
+      const navTabs = [
+        { id: 'address', label: 'Addresses' },
+        { id: 'agenda', label: 'Agenda' },
+        { id: 'transport', label: 'Transportation' },
+        { id: 'bills', label: 'Receipts and Bills' },
+        { id: 'common', label: 'Common Info' }
+      ];
+
+      return (
+        <div class="min-h-screen flex flex-col justify-between relative z-10 px-6 py-6 max-w-7xl mx-auto">
+          <header class="flex justify-between items-center py-4 border-b border-slate-200 mb-8">
+            <div class="text-2xl font-black tracking-tight text-black">
+              Ehbnb<span class="text-[#002ce2]">.com</span>
+            </div>
+
+            <nav class="flex flex-wrap gap-2 md:gap-3">
+              {navTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  class={`text-xs md:text-sm font-bold px-3.5 py-2 rounded-lg transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-[#002ce2] text-white shadow-md shadow-[#002ce2]/20'
+                      : 'text-black/70 hover:text-black hover:bg-slate-100'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </header>
+
+          <main class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center my-auto py-4">
+            <div class="lg:col-span-5 space-y-6">
+              <span class="inline-block bg-[#f7f301] text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-slate-200">
+                4Balance Homestay
+              </span>
+              
+              <h1 class="text-5xl md:text-6xl font-black text-black tracking-tight leading-tight">
+                Ehbnb<span class="text-[#002ce2]">.com</span>
+              </h1>
+              
+              <p class="text-xl text-black/80 font-bold tracking-wide">
+                You go, I go
+              </p>
+            </div>
+
+            <div class="lg:col-span-7">
+              <div class="bg-white border-2 border-[#002ce2] rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+                <div class="flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
+                  <div class="flex gap-2">
+                    <span class="w-3 h-3 rounded-full bg-[#f7f301] border border-slate-300"></span>
+                    <span class="w-3 h-3 rounded-full bg-[#002ce2]"></span>
+                    <span class="w-3 h-3 rounded-full bg-slate-300"></span>
+                  </div>
+                  <span class="text-[10px] font-mono font-bold text-black/40 uppercase tracking-widest">Ehbnb Dashboard</span>
+                </div>
+
+                {activeTab === 'address' && <AddressForm autoEmail={autoEmail} />}
+                {activeTab === 'agenda' && <AgendaView />}
+                {activeTab === 'transport' && <TransportView />}
+                {activeTab === 'bills' && <BillsView />}
+                {activeTab === 'common' && <CommonView />}
+              </div>
+            </div>
+          </main>
+
+          <footer class="text-center text-xs text-black/40 py-4 relative z-10 font-medium">
+            Ehbnb.com • 4Balance Homestay Sri Petaling
+          </footer>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
