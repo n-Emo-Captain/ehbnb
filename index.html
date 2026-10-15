@@ -45,6 +45,7 @@
 
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxDCrgayM9o_Q4UnZ2JwcBfoisVapls_3loCM81kMt4gri8peztk95DbIQXmI8rSVLIg/exec";
     const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1CInoi1H1tQWkf5UYdcVzQRN9DCm_XX79?usp=drive_link";
+    const ADMIN_PIN = "1234";
 
     const formatTimeDisplay = (timeVal) => {
       if (!timeVal) return '';
@@ -209,7 +210,7 @@
           </div>
 
           {loading ? (
-            <div class="p-6 text-center text-xs text-slate-400">Loading agenda from spreadsheet...</div>
+            <div class="p-6 text-center text-xs text-slate-400">Loading agenda...</div>
           ) : agendaItems.length > 0 ? (
             <div class="space-y-3">
               {agendaItems.map((item, index) => {
@@ -236,14 +237,14 @@
               })}
             </div>
           ) : (
-            <div class="p-4 text-center text-xs text-slate-400">No agenda items found in spreadsheet.</div>
+            <div class="p-4 text-center text-xs text-slate-400">No agenda items found.</div>
           )}
         </div>
       );
     };
 
-    // --- 3. "Who fetch us ya?" Component ---
-    const TransportView = () => {
+    // --- 3. Transportation Component (Clean Guest View vs Admin View) ---
+    const TransportView = ({ isAdmin }) => {
       const [participants, setParticipants] = useState([]);
       const [addressMap, setAddressMap] = useState({});
       const [cars, setCars] = useState([]);
@@ -392,324 +393,202 @@
         <div class="space-y-6">
           <div class="flex justify-between items-start">
             <div>
-              <h2 class="text-xl font-bold text-slate-900 mb-1">Who fetch us ya?</h2>
-              <p class="text-xs text-slate-500">Choose drivers, assign passenger blocks, and arrange pickup stops.</p>
+              <h2 class="text-xl font-bold text-slate-900 mb-1">Car & Transport Arrangements</h2>
+              <p class="text-xs text-slate-500">
+                {isAdmin ? "Admin Controls: Select drivers, assign passengers, and edit pickup routes." : "Departure times, driver info, and passenger routes."}
+              </p>
             </div>
-            <button 
-              onClick={saveToSheet} 
-              disabled={saving || loading}
-              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
-            >
-              {saving ? "Syncing..." : "Save & Sync to Sheet"}
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={saveToSheet} 
+                disabled={saving || loading}
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Syncing..." : "Save & Sync to Sheet"}
+              </button>
+            )}
           </div>
 
           {loading ? (
-            <div class="p-6 text-center text-xs text-slate-400">Loading participants & drivers...</div>
+            <div class="p-6 text-center text-xs text-slate-400">Loading transport data...</div>
+          ) : !isAdmin ? (
+            /* --- CLEAN GUEST READ-ONLY VIEW --- */
+            <div class="space-y-4">
+              {cars.length === 0 ? (
+                <div class="p-4 text-center text-xs text-slate-400">No cars arranged yet.</div>
+              ) : (
+                cars.map((car, idx) => {
+                  const routeStops = parseRouteStops(car.pickupRoute);
+                  return (
+                    <div key={idx} class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+                      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                        <div>
+                          <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{car.carId}</span>
+                          <h3 class="text-sm font-bold text-slate-900">Driver: {car.driver}</h3>
+                        </div>
+                        <span class="bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded border border-blue-200">
+                          🕒 Departs: {car.departureTime || '01:30 PM'}
+                        </span>
+                      </div>
+
+                      {/* Route Sequence */}
+                      <div class="space-y-1">
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">📍 Pickup Route Sequence:</span>
+                        <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-800 font-medium">
+                          {routeStops.length > 0 ? (
+                            routeStops.map((stop, sIdx) => (
+                              <React.Fragment key={sIdx}>
+                                <span class="bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold">
+                                  {stop}
+                                </span>
+                                {sIdx < routeStops.length - 1 && <span class="text-slate-400 font-bold">➔</span>}
+                              </React.Fragment>
+                            ))
+                          ) : (
+                            <span class="text-slate-400 italic">Direct to Homestay</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Passengers */}
+                      <div class="space-y-1 pt-1">
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">👥 Passengers ({car.passengers ? car.passengers.length : 0}):</span>
+                        <div class="flex flex-wrap gap-1.5">
+                          {car.passengers && car.passengers.length > 0 ? (
+                            car.passengers.map((p, pIdx) => (
+                              <span key={pIdx} class="bg-slate-100 text-slate-800 text-xs font-semibold px-2.5 py-1 rounded-md border border-slate-200">
+                                {p}
+                              </span>
+                            ))
+                          ) : (
+                            <span class="text-xs text-slate-400 italic">No passengers assigned</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           ) : (
+            /* --- ADMIN EDITING VIEW --- */
             <div class="space-y-6">
-              
               {/* Driver Selection */}
               <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <span class="text-xs font-semibold uppercase tracking-wider text-slate-700 block">
-                  🚗 Choose Who is Driver (Tick / Untick):
+                  🚗 Choose Drivers (Tick / Untick):
                 </span>
-                
-                {participants.length === 0 ? (
-                  <p class="text-xs text-slate-400 italic">No registered participants found yet. Submit addresses first!</p>
-                ) : (
-                  <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {participants.map((person, idx) => {
-                      const isDriver = driverNames.includes(person);
-                      return (
-                        <label 
-                          key={idx} 
-                          class={`flex items-center gap-2 p-2 rounded-lg border text-xs font-semibold cursor-pointer transition ${
-                            isDriver 
-                              ? 'bg-blue-600 text-white border-blue-600' 
-                              : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <input 
-                            type="checkbox" 
-                            checked={isDriver} 
-                            onChange={() => toggleDriver(person)}
-                            class="w-3.5 h-3.5 accent-blue-600 cursor-pointer" 
-                          />
-                          <span class="truncate">{person} {isDriver ? '(Driver)' : ''}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {participants.map((person, idx) => {
+                    const isDriver = driverNames.includes(person);
+                    return (
+                      <label key={idx} class={`flex items-center gap-2 p-2 rounded-lg border text-xs font-semibold cursor-pointer transition ${isDriver ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'}`}>
+                        <input type="checkbox" checked={isDriver} onChange={() => toggleDriver(person)} class="w-3.5 h-3.5 accent-blue-600 cursor-pointer" />
+                        <span class="truncate">{person} {isDriver ? '(Driver)' : ''}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Unassigned Passenger Scratch Blocks */}
+              {/* Unassigned Passenger Blocks */}
               <div class="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
                 <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
                   🧩 Unassigned Passenger Blocks ({unassignedPassengers.length})
                 </span>
-                
-                {unassignedPassengers.length === 0 ? (
-                  <p class="text-xs text-slate-400 italic">All passengers are assigned or selected as drivers!</p>
-                ) : (
-                  <div class="flex flex-wrap gap-2">
-                    {unassignedPassengers.map((name, i) => (
-                      <div
-                        key={i}
-                        draggable
-                        onDragStart={() => setDraggedName(name)}
-                        class="scratch-block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-sm"
-                      >
-                        <span>⋮⋮ {name}</span>
-                        <select 
-                          onChange={(e) => e.target.value !== "" && assignToCar(name, parseInt(e.target.value))}
-                          class="bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 outline-none font-semibold cursor-pointer"
-                          defaultValue=""
-                        >
-                          <option value="" disabled>+ Car</option>
-                          {cars.map((c, cIdx) => (
-                            <option key={cIdx} value={cIdx}>{c.driver}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div class="flex flex-wrap gap-2">
+                  {unassignedPassengers.map((name, i) => (
+                    <div key={i} draggable onDragStart={() => setDraggedName(name)} class="scratch-block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-sm">
+                      <span>⋮⋮ {name}</span>
+                      <select onChange={(e) => e.target.value !== "" && assignToCar(name, parseInt(e.target.value))} class="bg-slate-800 text-white text-[10px] rounded px-1.5 py-0.5 outline-none font-semibold cursor-pointer" defaultValue="">
+                        <option value="" disabled>+ Car</option>
+                        {cars.map((c, cIdx) => <option key={cIdx} value={cIdx}>{c.driver}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Driver Car Blocks */}
+              {/* Driver Car Cards */}
               <div class="space-y-4">
-                <span class="text-xs font-semibold uppercase tracking-wider text-slate-700 block">
-                  🚘 Driver Car Blocks ({cars.length}):
-                </span>
-
-                {cars.length === 0 ? (
-                  <p class="text-xs text-slate-400 italic">No drivers selected yet. Tick participants above to assign drivers.</p>
-                ) : (
-                  cars.map((car, carIdx) => {
-                    const carPeople = [car.driver, ...(car.passengers || [])].filter(Boolean);
-                    const routeStops = parseRouteStops(car.pickupRoute);
-
-                    return (
-                      <div 
-                        key={carIdx}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => draggedName && assignToCar(draggedName, carIdx)}
-                        class="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm"
-                      >
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
-                          <div>
-                            <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">{car.carId}</span>
-                            <h3 class="text-sm font-bold text-slate-900">Driver: {car.driver}</h3>
-                          </div>
-                          <button 
-                            onClick={() => toggleDriver(car.driver)}
-                            class="bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-red-200 transition"
-                          >
-                            Untick Driver
-                          </button>
+                {cars.map((car, carIdx) => {
+                  const carPeople = [car.driver, ...(car.passengers || [])].filter(Boolean);
+                  const routeStops = parseRouteStops(car.pickupRoute);
+                  return (
+                    <div key={carIdx} onDragOver={(e) => e.preventDefault()} onDrop={() => draggedName && assignToCar(draggedName, carIdx)} class="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm">
+                      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                        <div>
+                          <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">{car.carId}</span>
+                          <h3 class="text-sm font-bold text-slate-900">Driver: {car.driver}</h3>
                         </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                          <div>
-                            <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-                              Suggested Departure Time
-                            </label>
-                            <input 
-                              type="text" 
-                              value={car.departureTime} 
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCars(cars.map((c, idx) => idx === carIdx ? { ...c, departureTime: val } : c));
-                              }}
-                              class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium focus:border-blue-600 outline-none"
-                              placeholder="01:30 PM"
-                            />
-                          </div>
-
-                          <div>
-                            <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">
-                              Pickup Route String
-                            </label>
-                            <input 
-                              type="text" 
-                              value={car.pickupRoute} 
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCars(cars.map((c, idx) => idx === carIdx ? { ...c, pickupRoute: val } : c));
-                              }}
-                              class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium focus:border-blue-600 outline-none"
-                              placeholder="Route ➔ Homestay"
-                            />
-                          </div>
-                        </div>
-
-                        {/* REARRANGEABLE ROUTE VISUALIZER */}
-                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
-                          <div class="flex justify-between items-center">
-                            <span class="text-[11px] font-semibold text-slate-600 uppercase">
-                              📍 Current Route Sequence (Rearrange / Delete Stops):
-                            </span>
-                            {routeStops.length > 0 && (
-                              <button 
-                                type="button" 
-                                onClick={() => updateRouteFromStops(carIdx, ['Homestay'])}
-                                class="text-[11px] text-red-600 font-medium underline hover:text-red-800"
-                              >
-                                Reset Route
-                              </button>
-                            )}
-                          </div>
-
-                          {routeStops.length === 0 ? (
-                            <p class="text-xs text-slate-400 italic">No stops in route yet. Click stops below to build the sequence.</p>
-                          ) : (
-                            <div class="flex flex-wrap gap-2 items-center">
-                              {routeStops.map((stop, sIdx) => (
-                                <React.Fragment key={sIdx}>
-                                  <div class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 flex items-center gap-1.5 shadow-sm">
-                                    <span>{stop}</span>
-                                    
-                                    {sIdx > 0 && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => moveStopInCar(carIdx, sIdx, -1)}
-                                        class="text-[10px] text-blue-600 font-bold px-1 hover:bg-slate-100 rounded"
-                                        title="Move earlier"
-                                      >
-                                        ←
-                                      </button>
-                                    )}
-
-                                    {sIdx < routeStops.length - 1 && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => moveStopInCar(carIdx, sIdx, 1)}
-                                        class="text-[10px] text-blue-600 font-bold px-1 hover:bg-slate-100 rounded"
-                                        title="Move later"
-                                      >
-                                        →
-                                      </button>
-                                    )}
-
-                                    <button 
-                                      type="button" 
-                                      onClick={() => removeStopFromCar(carIdx, sIdx)}
-                                      class="text-[10px] text-red-600 font-bold px-1 hover:bg-red-50 rounded"
-                                      title="Remove stop"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-
-                                  {sIdx < routeStops.length - 1 && (
-                                    <span class="text-xs font-bold text-slate-400">➔</span>
-                                  )}
-                                </React.Fragment>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* PASSENGER-SPECIFIC ADDRESS OPTIONS */}
-                          <div class="border-t border-slate-200 pt-3 space-y-2">
-                            <span class="text-[11px] font-semibold text-slate-600 uppercase block">
-                              ➕ Add Stops (Only showing addresses for {car.driver}'s car):
-                            </span>
-
-                            <div class="flex flex-wrap gap-1.5">
-                              {carPeople.map((personName, pIdx) => {
-                                const addr = addressMap[personName];
-                                if (!addr) return null;
-                                return (
-                                  <button
-                                    key={pIdx}
-                                    type="button"
-                                    onClick={() => appendStopToCar(carIdx, `${personName} (${addr})`)}
-                                    class="bg-white hover:bg-slate-100 border border-slate-200 rounded-md px-2 py-1 text-[11px] font-medium text-slate-800 shadow-sm transition"
-                                  >
-                                    + {personName}: {addr}
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            <div class="flex flex-wrap gap-1.5 items-center pt-1">
-                              {['UM (Universiti Malaya)', 'KL Sentral', 'LRT Station'].map((point, ptIdx) => (
-                                <button
-                                  key={ptIdx}
-                                  type="button"
-                                  onClick={() => appendStopToCar(carIdx, point)}
-                                  class="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm transition"
-                                >
-                                  + {point}
-                                </button>
-                              ))}
-
-                              <div class="flex gap-1 items-center">
-                                <input 
-                                  type="text"
-                                  placeholder="Custom stop..."
-                                  value={customStopInputs[carIdx] || ''}
-                                  onChange={(e) => setCustomStopInputs({ ...customStopInputs, [carIdx]: e.target.value })}
-                                  class="bg-white border border-slate-200 rounded px-2 py-1 text-[11px] font-medium outline-none w-28"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (customStopInputs[carIdx]) {
-                                      appendStopToCar(carIdx, customStopInputs[carIdx]);
-                                      setCustomStopInputs({ ...customStopInputs, [carIdx]: '' });
-                                    }
-                                  }}
-                                  class="bg-slate-800 text-white text-[11px] font-semibold px-2 py-1 rounded"
-                                >
-                                  + Add
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Passengers Drop Zone */}
-                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 min-h-[50px] space-y-2">
-                          <span class="text-[11px] font-semibold text-slate-500 uppercase block">
-                            Passengers in {car.driver}'s Car ({car.passengers ? car.passengers.length : 0}):
-                          </span>
-                          
-                          {car.passengers && car.passengers.length > 0 ? (
-                            <div class="flex flex-wrap gap-2">
-                              {car.passengers.map((pName, pIdx) => (
-                                <div key={pIdx} class="scratch-block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2 shadow-sm">
-                                  <span>{pName}</span>
-                                  <button 
-                                    onClick={() => unassignPassenger(pName)}
-                                    class="bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold hover:bg-red-700"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p class="text-xs text-slate-400 italic">Drop passenger blocks here or select from unassigned list above.</p>
-                          )}
-                        </div>
-
+                        <button onClick={() => toggleDriver(car.driver)} class="bg-red-50 text-red-600 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-red-200">Untick Driver</button>
                       </div>
-                    );
-                  })
-                )}
-              </div>
 
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Departure Time</label>
+                          <input type="text" value={car.departureTime} onChange={(e) => setCars(cars.map((c, idx) => idx === carIdx ? { ...c, departureTime: e.target.value } : c))} class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs outline-none" />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Route Text String</label>
+                          <input type="text" value={car.pickupRoute} onChange={(e) => setCars(cars.map((c, idx) => idx === carIdx ? { ...c, pickupRoute: e.target.value } : c))} class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs outline-none" />
+                        </div>
+                      </div>
+
+                      {/* Route Rearranger */}
+                      <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                        <div class="flex justify-between items-center">
+                          <span class="text-[11px] font-semibold text-slate-600 uppercase">📍 Rearrange Route:</span>
+                          <button type="button" onClick={() => updateRouteFromStops(carIdx, ['Homestay'])} class="text-[11px] text-red-600 underline">Reset Route</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 items-center">
+                          {routeStops.map((stop, sIdx) => (
+                            <React.Fragment key={sIdx}>
+                              <div class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold flex items-center gap-1">
+                                <span>{stop}</span>
+                                {sIdx > 0 && <button type="button" onClick={() => moveStopInCar(carIdx, sIdx, -1)} class="text-blue-600 px-0.5">←</button>}
+                                {sIdx < routeStops.length - 1 && <button type="button" onClick={() => moveStopInCar(carIdx, sIdx, 1)} class="text-blue-600 px-0.5">→</button>}
+                                <button type="button" onClick={() => removeStopFromCar(carIdx, sIdx)} class="text-red-600 px-0.5">✕</button>
+                              </div>
+                              {sIdx < routeStops.length - 1 && <span class="text-xs text-slate-400">➔</span>}
+                            </React.Fragment>
+                          ))}
+                        </div>
+
+                        <div class="border-t border-slate-200 pt-2 space-y-1.5">
+                          <span class="text-[10px] font-semibold text-slate-500 uppercase block">Add Stops for {car.driver}'s Car:</span>
+                          <div class="flex flex-wrap gap-1">
+                            {carPeople.map((personName, pIdx) => addressMap[personName] ? (
+                              <button key={pIdx} type="button" onClick={() => appendStopToCar(carIdx, `${personName} (${addressMap[personName]})`)} class="bg-white border border-slate-200 rounded px-2 py-0.5 text-[10px] font-medium text-slate-800">+ {personName}</button>
+                            ) : null)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Passenger Drop Area */}
+                      <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 min-h-[50px] space-y-2">
+                        <span class="text-[11px] font-semibold text-slate-500 uppercase block">Passengers ({car.passengers ? car.passengers.length : 0}):</span>
+                        <div class="flex flex-wrap gap-2">
+                          {car.passengers && car.passengers.map((pName, pIdx) => (
+                            <div key={pIdx} class="scratch-block px-3 py-1 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-2">
+                              <span>{pName}</span>
+                              <button onClick={() => unassignPassenger(pName)} class="bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold">✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
       );
     };
 
-    // --- 4. Receipts and Bills Component ---
-    const BillsView = () => {
+    // --- 4. Receipts and Bills Component (Clean Guest View vs Admin View) ---
+    const BillsView = ({ isAdmin }) => {
       const [participants, setParticipants] = useState([]);
       const [bills, setBills] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -807,31 +686,35 @@
           <div class="flex justify-between items-start">
             <div>
               <h2 class="text-xl font-bold text-slate-900 mb-1">Receipts and Bills</h2>
-              <p class="text-xs text-slate-500">Choose who paid, edit amounts directly, and auto-calculate net balances.</p>
+              <p class="text-xs text-slate-500">
+                {isAdmin ? "Admin Controls: Add expenses, edit amounts, and update who paid." : "Itemized expenses and settlement summary."}
+              </p>
             </div>
-            <button 
-              onClick={saveBillsToSheet} 
-              disabled={saving || loading}
-              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
-            >
-              {saving ? "Syncing..." : "Save & Sync Bills"}
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={saveBillsToSheet} 
+                disabled={saving || loading}
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-2 rounded-lg text-xs transition shadow-sm disabled:opacity-50"
+              >
+                {saving ? "Syncing..." : "Save & Sync Bills"}
+              </button>
+            )}
           </div>
 
           {loading ? (
-            <div class="p-6 text-center text-xs text-slate-400">Loading bills and calculating balances...</div>
+            <div class="p-6 text-center text-xs text-slate-400">Loading bills...</div>
           ) : (
             <div class="space-y-6">
               
+              {/* Itemized Expenses Table */}
               <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm space-y-2">
                 <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                   <h3 class="text-xs font-semibold uppercase text-slate-600 tracking-wider">1. Itemized Expenses</h3>
-                  <button 
-                    onClick={addBillRow}
-                    class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-3 py-1 rounded text-xs transition shadow-sm"
-                  >
-                    + Add Expense Item
-                  </button>
+                  {isAdmin && (
+                    <button onClick={addBillRow} class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-3 py-1 rounded text-xs transition shadow-sm">
+                      + Add Expense Item
+                    </button>
+                  )}
                 </div>
 
                 <div class="overflow-x-auto p-2">
@@ -842,7 +725,7 @@
                         <th class="p-2.5">Paid Upfront By</th>
                         <th class="p-2.5 text-right">Total (MYR)</th>
                         <th class="p-2.5 text-right">Per Pax ({paxCount} Pax)</th>
-                        <th class="p-2.5 text-center">Action</th>
+                        {isAdmin && <th class="p-2.5 text-center">Action</th>}
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -851,58 +734,44 @@
                           const itemCost = parseFloat(b.totalAmount) || 0;
                           return (
                             <tr key={idx} class="hover:bg-slate-50">
-                              <td class="p-2">
-                                <input 
-                                  type="text" 
-                                  value={b.item} 
-                                  onChange={(e) => handleBillChange(idx, 'item', e.target.value)}
-                                  class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs text-slate-900 focus:border-blue-600 outline-none"
-                                />
+                              <td class="p-2.5 font-semibold text-slate-900">
+                                {isAdmin ? (
+                                  <input type="text" value={b.item} onChange={(e) => handleBillChange(idx, 'item', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs outline-none" />
+                                ) : b.item}
                               </td>
 
-                              <td class="p-2">
-                                <select 
-                                  value={b.paidBy || (participants[0] || '')} 
-                                  onChange={(e) => handleBillChange(idx, 'paidBy', e.target.value)}
-                                  class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs text-blue-600 focus:border-blue-600 outline-none cursor-pointer"
-                                >
-                                  {participants.map((person, pIdx) => (
-                                    <option key={pIdx} value={person}>{person}</option>
-                                  ))}
-                                </select>
+                              <td class="p-2.5 font-semibold text-blue-600">
+                                {isAdmin ? (
+                                  <select value={b.paidBy || (participants[0] || '')} onChange={(e) => handleBillChange(idx, 'paidBy', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-semibold text-xs outline-none cursor-pointer">
+                                    {participants.map((person, pIdx) => <option key={pIdx} value={person}>{person}</option>)}
+                                  </select>
+                                ) : b.paidBy}
                               </td>
 
-                              <td class="p-2 text-right">
-                                <div class="flex items-center justify-end gap-1">
-                                  <span class="font-medium text-slate-400">RM</span>
-                                  <input 
-                                    type="number" 
-                                    step="0.01"
-                                    value={b.totalAmount} 
-                                    onChange={(e) => handleBillChange(idx, 'totalAmount', e.target.value)}
-                                    class="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-right text-xs text-slate-900 focus:border-blue-600 outline-none"
-                                  />
-                                </div>
+                              <td class="p-2.5 text-right font-bold text-slate-900">
+                                {isAdmin ? (
+                                  <div class="flex items-center justify-end gap-1">
+                                    <span class="font-medium text-slate-400">RM</span>
+                                    <input type="number" step="0.01" value={b.totalAmount} onChange={(e) => handleBillChange(idx, 'totalAmount', e.target.value)} class="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-right text-xs outline-none" />
+                                  </div>
+                                ) : `RM ${itemCost.toFixed(2)}`}
                               </td>
 
-                              <td class="p-2 text-right font-medium text-slate-600">
+                              <td class="p-2.5 text-right font-medium text-slate-600">
                                 RM {(itemCost / paxCount).toFixed(2)}
                               </td>
 
-                              <td class="p-2 text-center">
-                                <button 
-                                  onClick={() => deleteBillRow(idx)}
-                                  class="text-red-600 font-semibold hover:bg-red-50 p-1 rounded text-xs"
-                                >
-                                  ✕
-                                </button>
-                              </td>
+                              {isAdmin && (
+                                <td class="p-2.5 text-center">
+                                  <button onClick={() => deleteBillRow(idx)} class="text-red-600 font-semibold p-1">✕</button>
+                                </td>
+                              )}
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan="5" class="p-4 text-center text-slate-400 italic">No bills recorded. Click "+ Add Expense Item" above.</td>
+                          <td colSpan={isAdmin ? 5 : 4} class="p-4 text-center text-slate-400 italic">No bills recorded.</td>
                         </tr>
                       )}
                     </tbody>
@@ -911,13 +780,14 @@
                         <td class="p-3 uppercase text-xs" colSpan="2">TOTAL EXPENSES</td>
                         <td class="p-3 text-right">RM {totalCost.toFixed(2)}</td>
                         <td class="p-3 text-right text-xs">RM {perPaxTotalShare.toFixed(2)}</td>
-                        <td></td>
+                        {isAdmin && <td></td>}
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </div>
 
+              {/* Settlement Summary */}
               <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 space-y-3">
                 <span class="inline-block bg-blue-600 text-white text-[10px] font-semibold px-2.5 py-1 rounded uppercase tracking-wider">
                   💸 Settlement Summary (Who Pays Who)
@@ -941,6 +811,7 @@
                 )}
               </div>
 
+              {/* Individual Balances */}
               <div class="space-y-3">
                 <h3 class="text-xs font-semibold uppercase text-slate-600 tracking-wider">2. Individual Participant Balances</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -982,7 +853,7 @@
       );
     };
 
-    // --- 5. Enhanced Common Info Component ---
+    // --- 5. Common Info Component ---
     const CommonView = () => (
       <div class="space-y-6">
         <div>
@@ -990,7 +861,7 @@
           <p class="text-xs text-slate-500">Location, check-in details, Wi-Fi, photo drive album, contacts, and house rules.</p>
         </div>
 
-        {/* NEW FEATURE: Shared Google Drive Folder for Photos/Videos */}
+        {/* Google Drive Upload Card */}
         <div class="bg-blue-50/60 border border-blue-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center gap-3">
             <span class="text-2xl">📸</span>
@@ -999,12 +870,7 @@
               <p class="text-xs text-slate-600 mt-0.5">Upload and share photos or videos taken during our trip!</p>
             </div>
           </div>
-          <a 
-            href={DRIVE_FOLDER_URL} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg text-xs transition shadow-sm"
-          >
+          <a href={DRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer" class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg text-xs transition shadow-sm">
             <span class="flex items-center gap-2">
               <span>📁 Open Shared Google Drive Folder</span>
             </span>
@@ -1025,29 +891,19 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-            <a 
-              href="https://waze.com/ul/hw283d17xq" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm"
-            >
+            <a href="https://waze.com/ul/hw283d17xq" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm">
               <span>Open in Waze</span>
               <span class="text-sm">➔</span>
             </a>
 
-            <a 
-              href="https://maps.app.goo.gl/R9hmgxk72atyjKuh7?g_st=com.google.maps.preview.copy" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="flex items-center justify-between bg-slate-900 hover:bg-slate-800 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm"
-            >
+            <a href="https://maps.app.goo.gl/R9hmgxk72atyjKuh7?g_st=com.google.maps.preview.copy" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between bg-slate-900 hover:bg-slate-800 text-white font-semibold p-3 rounded-lg text-xs transition shadow-sm">
               <span>Open in Google Maps</span>
               <span class="text-sm">➔</span>
             </a>
           </div>
         </div>
 
-        {/* Wi-Fi & Key Door Access */}
+        {/* Wi-Fi & Door Access */}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
             <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">📶 Wi-Fi Access</span>
@@ -1060,19 +916,18 @@
           <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
             <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">🔑 Door Access & Arrival</span>
             <p class="text-xs text-slate-700 font-normal leading-relaxed">
-              Located next to <strong>Ming Hin Restaurant</strong> (door is on the left). Key in the passcode ending with <strong>#</strong> to open security door. 
-              Passcode sent by customer service by <strong>2:30 PM</strong> on check-in date.
+              Located next to <strong>Ming Hin Restaurant</strong> (door is on left). Key in passcode ending with <strong>#</strong> to open security door. Passcode sent by customer service by <strong>2:30 PM</strong> on check-in date.
             </p>
           </div>
         </div>
 
-        {/* Timings & Persons in Charge */}
+        {/* Timings & Contacts */}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-sm">
             <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider block">⏰ Check-In / Check-Out</span>
             <div class="text-xs space-y-1 text-slate-700 font-normal">
-              <p>• <strong>Check-In:</strong> After 3:00 PM <span class="text-slate-400 text-[10px] block">(Early check-in RM100/hr subject to availability)</span></p>
-              <p>• <strong>Check-Out:</strong> Before 11:00 AM <span class="text-slate-400 text-[10px] block">(Late check-out RM100/hr subject to availability)</span></p>
+              <p>• <strong>Check-In:</strong> After 3:00 PM <span class="text-slate-400 text-[10px] block">(Early check-in RM100/hr)</span></p>
+              <p>• <strong>Check-Out:</strong> Before 11:00 AM <span class="text-slate-400 text-[10px] block">(Late check-out RM100/hr)</span></p>
             </div>
           </div>
 
@@ -1086,67 +941,40 @@
           </div>
         </div>
 
-        {/* House Rules & Fines Card */}
+        {/* House Rules */}
         <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm">
           <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-              ⚠️ House Rules & Regulations
-            </span>
-            <span class="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-              Fines up to RM8,500
-            </span>
+            <span class="text-xs font-semibold text-slate-700 uppercase tracking-wider">⚠️ House Rules & Regulations</span>
+            <span class="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">Fines up to RM8,500</span>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-800">
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🚫 Indoor Smoking</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🍺 Over Drinking</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🤫 Loud Noise at Balcony after 11 PM</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🔊 Over Blasting Music</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🚫 Illegal Drugs</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 3,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🛋️ Relocating Furniture</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>📌 Taping / Glueing Walls</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 500 fine</span>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center">
-              <span>🍈 Durian on Premises</span>
-              <span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span>
-            </div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🚫 Indoor Smoking</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🍺 Over Drinking</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🤫 Loud Noise at Balcony after 11 PM</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🔊 Over Blasting Music</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🚫 Illegal Drugs</span><span class="text-red-600 font-semibold text-[11px]">RM 3,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🛋️ Relocating Furniture</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>📌 Taping / Glueing Walls</span><span class="text-red-600 font-semibold text-[11px]">RM 500 fine</span></div>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex justify-between items-center"><span>🍈 Durian on Premises</span><span class="text-red-600 font-semibold text-[11px]">RM 1,000 fine</span></div>
           </div>
 
-          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs font-normal text-slate-600 space-y-1">
+          <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
             <p>👟 <strong>No Shoes:</strong> Strictly NO wearing shoes inside the premise.</p>
-            <p>🛋️ <strong>Care Rule:</strong> Please dry yourself completely before sitting on the sofa.</p>
-            <p>⚡ <strong>Power & Water:</strong> Switch off all electronics, devices, and water before leaving.</p>
-            <p>💥 <strong>Damages:</strong> Any damaged items will be charged at full replacement price.</p>
+            <p>🛋️ <strong>Care Rule:</strong> Please dry yourself completely before sitting on sofa.</p>
+            <p>⚡ <strong>Power & Water:</strong> Switch off all electronics and water before leaving.</p>
+            <p>💥 <strong>Damages:</strong> Damaged items charged at full replacement price.</p>
           </div>
         </div>
 
       </div>
     );
 
-    // --- Main Layout ---
+    // --- Main App Layout with Admin Toggle ---
     const App = () => {
       const [activeTab, setActiveTab] = useState('address');
       const [autoEmail, setAutoEmail] = useState('');
+      const [isAdmin, setIsAdmin] = useState(false);
 
       useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -1156,7 +984,24 @@
         } else {
           setAutoEmail("23005076@siswa.um.edu.my");
         }
+
+        if (params.get('admin') === 'true') {
+          setIsAdmin(true);
+        }
       }, []);
+
+      const toggleAdmin = () => {
+        if (isAdmin) {
+          setIsAdmin(false);
+        } else {
+          const pin = prompt("Enter Admin PIN to edit website:");
+          if (pin === ADMIN_PIN) {
+            setIsAdmin(true);
+          } else if (pin !== null) {
+            alert("Incorrect PIN!");
+          }
+        }
+      };
 
       const navTabs = [
         { id: 'address', label: 'Home' },
@@ -1169,11 +1014,18 @@
       return (
         <div class="min-h-screen flex flex-col justify-between relative z-10 px-6 py-6 max-w-7xl mx-auto">
           <header class="flex justify-between items-center py-4 border-b border-slate-200 mb-8">
-            <div class="text-xl font-bold tracking-tight text-slate-900">
-              Ehbnb<span class="text-blue-600">.com</span>
+            <div class="flex items-center gap-3">
+              <div class="text-xl font-bold tracking-tight text-slate-900">
+                Ehbnb<span class="text-blue-600">.com</span>
+              </div>
+              {isAdmin && (
+                <span class="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                  Admin Mode Active
+                </span>
+              )}
             </div>
 
-            <nav class="flex flex-wrap gap-2 md:gap-3">
+            <nav class="flex flex-wrap items-center gap-2 md:gap-3">
               {navTabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -1187,6 +1039,18 @@
                   {tab.label}
                 </button>
               ))}
+
+              <button 
+                onClick={toggleAdmin} 
+                class={`text-xs font-semibold px-2.5 py-2 rounded-lg transition-all border ${
+                  isAdmin 
+                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100' 
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                }`}
+                title="Toggle Admin Edit Mode"
+              >
+                {isAdmin ? '🔓 Lock Admin' : '🔒 Admin'}
+              </button>
             </nav>
           </header>
 
@@ -1218,8 +1082,8 @@
 
                 {activeTab === 'address' && <AddressForm autoEmail={autoEmail} />}
                 {activeTab === 'agenda' && <AgendaView />}
-                {activeTab === 'transport' && <TransportView />}
-                {activeTab === 'bills' && <BillsView />}
+                {activeTab === 'transport' && <TransportView isAdmin={isAdmin} />}
+                {activeTab === 'bills' && <BillsView isAdmin={isAdmin} />}
                 {activeTab === 'common' && <CommonView />}
               </div>
             </div>
