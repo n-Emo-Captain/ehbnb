@@ -592,19 +592,85 @@
       );
     };
 
-    // --- 4. Receipts and Bills Component (#002ce2, #0040e4, #f7f301, #ffffff Integration) ---
+    // --- 4. Receipts and Bills Component (weighted per-person split) ---
+    // Each bill stores a "share weight" per participant:
+    //   1 = full share, 0.5 = half share, 0.25 = quarter share, 0 = not included.
+    // A person's cost for a bill = bill total × (their weight ÷ sum of all weights).
+    const SHARE_CYCLE = [1, 0.5, 0.25, 0];
+    const shareLabel = (w) => {
+      if (w >= 1) return 'Full';
+      if (w === 0.75) return '¾';
+      if (w === 0.5) return '½';
+      if (w === 0.25) return '¼';
+      if (w <= 0) return 'Out';
+      return `×${w}`;
+    };
+    const BILL_COLORS = ['#002ce2', '#f7f301', '#0f172a', '#60a5fa', '#f59e0b', '#10b981', '#a855f7', '#ef4444', '#94a3b8', '#0ea5e9'];
+
+    // Reads the split saved in the sheet. Accepts "Name:1, Name:0.5", JSON, or a plain name list.
+    // If nothing is saved for a bill, everyone gets a full share (the old behaviour).
+    const parseShares = (raw, participants) => {
+      let obj = null;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        obj = raw;
+      } else if (Array.isArray(raw)) {
+        obj = {};
+        raw.forEach((n) => { obj[n] = 1; });
+      } else if (typeof raw === 'string' && raw.trim()) {
+        const s = raw.trim();
+        if (s.startsWith('{')) {
+          try { obj = JSON.parse(s); } catch (e) { obj = null; }
+        }
+        if (!obj) {
+          obj = {};
+          s.split(',').forEach((part) => {
+            const piece = part.trim();
+            if (!piece) return;
+            const colon = piece.lastIndexOf(':');
+            if (colon === -1) {
+              obj[piece] = 1;
+            } else {
+              const name = piece.slice(0, colon).trim();
+              const w = parseFloat(piece.slice(colon + 1));
+              if (name) obj[name] = isNaN(w) ? 1 : w;
+            }
+          });
+        }
+      }
+      const result = {};
+      participants.forEach((p) => {
+        if (!obj) result[p] = 1;
+        else result[p] = obj[p] !== undefined ? (Number(obj[p]) || 0) : 0;
+      });
+      return result;
+    };
+
+    // Turns the split into readable text for the sheet, e.g. "Lim Zhi Ying:1, Yiyin:0.5"
+    const serializeShares = (shares) =>
+      Object.entries(shares || {}).map(([name, w]) => `${name}:${w}`).join(', ');
+
     const BillsView = ({ isAdmin }) => {
       const [participants, setParticipants] = useState([]);
       const [bills, setBills] = useState([]);
       const [loading, setLoading] = useState(true);
       const [saving, setSaving] = useState(false);
 
+      const everyoneFull = (list) => {
+        const s = {};
+        list.forEach((p) => { s[p] = 1; });
+        return s;
+      };
+
       useEffect(() => {
         fetch(`${APPS_SCRIPT_URL}?action=getBillsData`)
           .then((res) => res.json())
           .then((data) => {
-            setParticipants(data.participants || []);
-            setBills(data.bills || []);
+            const people = data.participants || [];
+            setParticipants(people);
+            setBills((data.bills || []).map((b) => ({
+              ...b,
+              shares: parseShares(b.splitShares !== undefined ? b.splitShares : b.shares, people)
+            })));
             setLoading(false);
           })
           .catch((err) => {
@@ -623,9 +689,29 @@
         setBills(updated);
       };
 
+      const setShare = (billIdx, person, weight) => {
+        setBills(bills.map((b, idx) =>
+          idx === billIdx ? { ...b, shares: { ...(b.shares || {}), [person]: weight } } : b
+        ));
+      };
+
+      const cycleShare = (billIdx, person) => {
+        const current = (bills[billIdx].shares || {})[person];
+        const curr = current === undefined ? 1 : current;
+        const pos = SHARE_CYCLE.indexOf(curr);
+        const next = SHARE_CYCLE[(pos + 1) % SHARE_CYCLE.length];
+        setShare(billIdx, person, next);
+      };
+
+      const setAllShares = (billIdx, weight) => {
+        const s = {};
+        participants.forEach((p) => { s[p] = weight; });
+        setBills(bills.map((b, idx) => idx === billIdx ? { ...b, shares: s } : b));
+      };
+
       const addBillRow = () => {
         const defaultPayer = participants.length > 0 ? participants[0] : 'Lim Zhi Ying';
-        setBills([...bills, { item: 'New Expense Item', paidBy: defaultPayer, totalAmount: 0 }]);
+        setBills([...bills, { item: 'New Expense Item', paidBy: defaultPayer, totalAmount: 0, shares: everyoneFull(participants) }]);
       };
 
       const deleteBillRow = (index) => {
@@ -635,13 +721,17 @@
       const saveBillsToSheet = async () => {
         setSaving(true);
         try {
+          const payloadBills = bills.map(({ shares, ...rest }) => ({
+            ...rest,
+            splitShares: serializeShares(shares)
+          }));
           await fetch(APPS_SCRIPT_URL, {
             method: "POST",
             mode: "no-cors",
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({
               action: "updateBills",
-              bills: bills
+              bills: payloadBills
             })
           });
           alert("Bills updated and synced to Google Sheets!");
@@ -653,27 +743,47 @@
         }
       };
 
-      const totalCost = bills.reduce((acc, b) => acc + (parseFloat(b.totalAmount) || 0), 0);
-      const paxCount = participants.length > 0 ? participants.length : 1;
-      const perPaxTotalShare = totalCost / paxCount;
+      // --- Per-bill calculations ---
+      const billCalcs = bills.map((b) => {
+        const total = parseFloat(b.totalAmount) || 0;
+        const shares = b.shares || everyoneFull(participants);
+        const totalWeight = participants.reduce((acc, p) => acc + (shares[p] || 0), 0);
+        const perPerson = {};
+        participants.forEach((p) => {
+          perPerson[p] = totalWeight > 0 ? (total * (shares[p] || 0)) / totalWeight : 0;
+        });
+        const sharers = participants.filter((p) => (shares[p] || 0) > 0);
+        const allEqual = sharers.every((p) => shares[p] === shares[sharers[0]]);
+        return { total, shares, totalWeight, perPerson, sharers, allEqual };
+      });
 
+      const totalCost = billCalcs.reduce((acc, c) => acc + c.total, 0);
+      const unsplitTotal = billCalcs.reduce((acc, c) => acc + (c.totalWeight > 0 ? 0 : c.total), 0);
+
+      // --- Per-person totals ---
       const paidMap = {};
-      participants.forEach((p) => { paidMap[p] = 0; });
-      bills.forEach((b) => {
+      const owedMap = {};
+      participants.forEach((p) => { paidMap[p] = 0; owedMap[p] = 0; });
+      bills.forEach((b, idx) => {
         const payer = b.paidBy || (participants[0] || 'Lim Zhi Ying');
-        const amt = parseFloat(b.totalAmount) || 0;
-        paidMap[payer] = (paidMap[payer] || 0) + amt;
+        paidMap[payer] = (paidMap[payer] || 0) + billCalcs[idx].total;
+      });
+      billCalcs.forEach((c) => {
+        participants.forEach((p) => { owedMap[p] += c.perPerson[p]; });
       });
 
       const balances = participants.map((p) => {
         const paid = paidMap[p] || 0;
-        const net = paid - perPaxTotalShare;
-        return { name: p, paid, net };
+        const owed = owedMap[p] || 0;
+        return { name: p, paid, owed, net: paid - owed };
       });
 
+      const maxOwed = Math.max(0.01, ...balances.map((b) => b.owed));
+
+      // --- Settlement: largest debts matched to largest credits first ---
       const settlements = [];
-      let debtors = balances.filter((b) => b.net < -0.01).map((b) => ({ ...b, owes: Math.abs(b.net) }));
-      let creditors = balances.filter((b) => b.net > 0.01).map((b) => ({ ...b, gets: b.net }));
+      const debtors = balances.filter((b) => b.net < -0.01).map((b) => ({ ...b, owes: Math.abs(b.net) })).sort((a, b) => b.owes - a.owes);
+      const creditors = balances.filter((b) => b.net > 0.01).map((b) => ({ ...b, gets: b.net })).sort((a, b) => b.gets - a.gets);
 
       debtors.forEach((d) => {
         creditors.forEach((c) => {
@@ -686,13 +796,15 @@
         });
       });
 
+      const colCount = isAdmin ? 5 : 4;
+
       return (
         <div class="space-y-6">
           <div class="flex justify-between items-start">
             <div>
               <h2 class="text-xl font-bold text-slate-900 mb-1">Receipts and Bills</h2>
               <p class="text-xs text-slate-500">
-                {isAdmin ? "Admin Controls: Add expenses, edit amounts, and update who paid." : "Itemized expenses and settlement summary."}
+                {isAdmin ? "Admin Controls: Add expenses, edit amounts, update who paid, and choose who shares each bill." : "Itemized expenses, who shares each one, and settlement summary."}
               </p>
             </div>
             {isAdmin && (
@@ -711,7 +823,7 @@
           ) : (
             <div class="space-y-6">
               
-              {/* Itemized Expenses Table with #002ce2 Header & #f7f301 Footer */}
+              {/* Itemized Expenses Table */}
               <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm space-y-2">
                 <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                   <h3 class="text-xs font-bold uppercase text-slate-700 tracking-wider">1. Itemized Expenses</h3>
@@ -722,6 +834,14 @@
                   )}
                 </div>
 
+                {isAdmin && (
+                  <div class="mx-3 bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-[11px] text-slate-700 leading-relaxed">
+                    <strong class="text-[#002ce2]">How splitting works:</strong> tap a name under an expense to change their share:
+                    <strong> Full → ½ → ¼ → Out</strong>. A ½ share pays half of what a Full share pays.
+                    Example: RM 300 split by 5 Full + 1 half = 5.5 shares → Full pays RM 54.55, half pays RM 27.27.
+                  </div>
+                )}
+
                 <div class="overflow-x-auto p-2">
                   <table class="w-full text-left text-xs text-slate-800">
                     <thead class="bg-[#002ce2] text-white uppercase text-[10px] font-bold tracking-wider">
@@ -729,54 +849,110 @@
                         <th class="p-2.5">Expense Item</th>
                         <th class="p-2.5">Paid Upfront By</th>
                         <th class="p-2.5 text-right">Total (MYR)</th>
-                        <th class="p-2.5 text-right">Per Pax ({paxCount} Pax)</th>
+                        <th class="p-2.5 text-right">Split</th>
                         {isAdmin && <th class="p-2.5 text-center">Action</th>}
                       </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
+                    <tbody>
                       {bills.length > 0 ? (
                         bills.map((b, idx) => {
-                          const itemCost = parseFloat(b.totalAmount) || 0;
+                          const calc = billCalcs[idx];
                           return (
-                            <tr key={idx} class="hover:bg-slate-50">
-                              <td class="p-2.5 font-bold text-slate-900">
-                                {isAdmin ? (
-                                  <input type="text" value={b.item} onChange={(e) => handleBillChange(idx, 'item', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-xs outline-none focus:border-[#002ce2]" />
-                                ) : b.item}
-                              </td>
-
-                              <td class="p-2.5 font-bold text-[#002ce2]">
-                                {isAdmin ? (
-                                  <select value={b.paidBy || (participants[0] || '')} onChange={(e) => handleBillChange(idx, 'paidBy', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-xs outline-none text-[#002ce2] cursor-pointer">
-                                    {participants.map((person, pIdx) => <option key={pIdx} value={person}>{person}</option>)}
-                                  </select>
-                                ) : b.paidBy}
-                              </td>
-
-                              <td class="p-2.5 text-right font-black text-slate-900">
-                                {isAdmin ? (
-                                  <div class="flex items-center justify-end gap-1">
-                                    <span class="font-bold text-slate-400">RM</span>
-                                    <input type="number" step="0.01" value={b.totalAmount} onChange={(e) => handleBillChange(idx, 'totalAmount', e.target.value)} class="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 font-black text-right text-xs outline-none focus:border-[#002ce2]" />
-                                  </div>
-                                ) : `RM ${itemCost.toFixed(2)}`}
-                              </td>
-
-                              <td class="p-2.5 text-right font-bold text-slate-600">
-                                RM {(itemCost / paxCount).toFixed(2)}
-                              </td>
-
-                              {isAdmin && (
-                                <td class="p-2.5 text-center">
-                                  <button onClick={() => deleteBillRow(idx)} class="text-red-600 font-bold p-1">✕</button>
+                            <React.Fragment key={idx}>
+                              <tr class="align-top">
+                                <td class="p-2.5 pb-1.5 font-bold text-slate-900">
+                                  <span class="flex items-center gap-1.5">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm border border-slate-900/20 shrink-0" style={{ backgroundColor: BILL_COLORS[idx % BILL_COLORS.length] }}></span>
+                                    {isAdmin ? (
+                                      <input type="text" value={b.item} onChange={(e) => handleBillChange(idx, 'item', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-xs outline-none focus:border-[#002ce2]" />
+                                    ) : b.item}
+                                  </span>
                                 </td>
-                              )}
-                            </tr>
+
+                                <td class="p-2.5 pb-1.5 font-bold text-[#002ce2]">
+                                  {isAdmin ? (
+                                    <select value={b.paidBy || (participants[0] || '')} onChange={(e) => handleBillChange(idx, 'paidBy', e.target.value)} class="w-full bg-slate-50 border border-slate-200 rounded p-1.5 font-bold text-xs outline-none text-[#002ce2] cursor-pointer">
+                                      {participants.map((person, pIdx) => <option key={pIdx} value={person}>{person}</option>)}
+                                    </select>
+                                  ) : b.paidBy}
+                                </td>
+
+                                <td class="p-2.5 pb-1.5 text-right font-black text-slate-900">
+                                  {isAdmin ? (
+                                    <div class="flex items-center justify-end gap-1">
+                                      <span class="font-bold text-slate-400">RM</span>
+                                      <input type="number" step="0.01" value={b.totalAmount} onChange={(e) => handleBillChange(idx, 'totalAmount', e.target.value)} class="w-24 bg-slate-50 border border-slate-200 rounded p-1.5 font-black text-right text-xs outline-none focus:border-[#002ce2]" />
+                                    </div>
+                                  ) : `RM ${calc.total.toFixed(2)}`}
+                                </td>
+
+                                <td class="p-2.5 pb-1.5 text-right font-bold text-slate-600 whitespace-nowrap">
+                                  {calc.totalWeight === 0 ? (
+                                    <span class="text-red-600">Nobody selected</span>
+                                  ) : calc.allEqual ? (
+                                    <React.Fragment>
+                                      {calc.sharers.length} pax
+                                      <span class="block text-[10px] text-slate-400">RM {(calc.total / calc.sharers.length).toFixed(2)} each</span>
+                                    </React.Fragment>
+                                  ) : (
+                                    <React.Fragment>
+                                      {calc.sharers.length} pax
+                                      <span class="block text-[10px] text-[#002ce2]">custom split</span>
+                                    </React.Fragment>
+                                  )}
+                                </td>
+
+                                {isAdmin && (
+                                  <td class="p-2.5 pb-1.5 text-center">
+                                    <button onClick={() => deleteBillRow(idx)} class="text-red-600 font-bold p-1">✕</button>
+                                  </td>
+                                )}
+                              </tr>
+
+                              {/* Who shares this bill */}
+                              <tr class="border-b border-slate-100">
+                                <td colSpan={colCount} class="px-2.5 pb-3 pt-0">
+                                  <div class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mr-0.5">Split:</span>
+                                    {participants.map((p, pIdx) => {
+                                      const w = calc.shares[p] || 0;
+                                      const out = w <= 0;
+                                      const chipClass = out
+                                        ? 'bg-slate-50 text-slate-400 border-slate-200 border-dashed'
+                                        : w >= 1
+                                          ? 'bg-[#002ce2] text-white border-[#002ce2]'
+                                          : 'bg-[#f7f301] text-slate-900 border-slate-900';
+                                      const content = (
+                                        <React.Fragment>
+                                          {p}
+                                          <span class="font-semibold opacity-80"> · {shareLabel(w)}{!out ? ` · RM ${calc.perPerson[p].toFixed(2)}` : ''}</span>
+                                        </React.Fragment>
+                                      );
+                                      return isAdmin ? (
+                                        <button key={pIdx} type="button" onClick={() => cycleShare(idx, p)} title="Tap to change: Full → ½ → ¼ → Out" class={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition hover:brightness-95 ${chipClass}`}>
+                                          {content}
+                                        </button>
+                                      ) : (
+                                        <span key={pIdx} class={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${chipClass}`}>
+                                          {content}
+                                        </span>
+                                      );
+                                    })}
+                                    {isAdmin && (
+                                      <React.Fragment>
+                                        <button type="button" onClick={() => setAllShares(idx, 1)} class="text-[10px] font-bold underline text-[#002ce2] ml-1">All</button>
+                                        <button type="button" onClick={() => setAllShares(idx, 0)} class="text-[10px] font-bold underline text-red-600">None</button>
+                                      </React.Fragment>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            </React.Fragment>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={isAdmin ? 5 : 4} class="p-4 text-center text-slate-400 italic">No bills recorded.</td>
+                          <td colSpan={colCount} class="p-4 text-center text-slate-400 italic">No bills recorded.</td>
                         </tr>
                       )}
                     </tbody>
@@ -784,11 +960,61 @@
                       <tr>
                         <td class="p-3 uppercase text-xs" colSpan="2">TOTAL EXPENSES</td>
                         <td class="p-3 text-right">RM {totalCost.toFixed(2)}</td>
-                        <td class="p-3 text-right text-xs">RM {perPaxTotalShare.toFixed(2)}</td>
+                        <td class="p-3 text-right text-[10px] font-bold">{participants.length} people</td>
                         {isAdmin && <td></td>}
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+              </div>
+
+              {unsplitTotal > 0.01 && (
+                <div class="bg-red-50 border border-red-200 p-3 rounded-xl text-red-700 text-xs font-semibold">
+                  ⚠️ RM {unsplitTotal.toFixed(2)} of expenses has nobody selected to split it, so it isn't charged to anyone yet.
+                </div>
+              )}
+
+              {/* Visual: who pays for what */}
+              <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm">
+                <div>
+                  <h3 class="text-xs font-bold uppercase text-slate-600 tracking-wider">2. Who Pays for What</h3>
+                  <p class="text-[10px] text-slate-500 mt-0.5">Each bar is that person's share of the trip, coloured by expense. Hover a segment to see the amount.</p>
+                </div>
+
+                <div class="flex flex-wrap gap-x-3 gap-y-1">
+                  {bills.map((b, i) => billCalcs[i].total > 0 ? (
+                    <span key={i} class="flex items-center gap-1 text-[10px] font-semibold text-slate-600">
+                      <span class="inline-block w-2.5 h-2.5 rounded-sm border border-slate-900/20" style={{ backgroundColor: BILL_COLORS[i % BILL_COLORS.length] }}></span>
+                      {b.item || `Item ${i + 1}`}
+                    </span>
+                  ) : null)}
+                </div>
+
+                <div class="space-y-2.5">
+                  {balances.map((b, idx) => (
+                    <div key={idx} class="space-y-1">
+                      <div class="flex justify-between text-[11px] font-bold gap-2">
+                        <span class="text-slate-900 truncate">{b.name}</span>
+                        <span class="text-slate-700 shrink-0">RM {b.owed.toFixed(2)}</span>
+                      </div>
+                      <div class="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full flex" style={{ width: `${(b.owed / maxOwed) * 100}%` }}>
+                          {billCalcs.map((c, i) => {
+                            const part = c.perPerson[b.name];
+                            if (!part || part <= 0 || b.owed <= 0) return null;
+                            return (
+                              <div
+                                key={i}
+                                title={`${bills[i].item}: RM ${part.toFixed(2)}`}
+                                class="h-full"
+                                style={{ width: `${(part / b.owed) * 100}%`, backgroundColor: BILL_COLORS[i % BILL_COLORS.length] }}
+                              ></div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -818,18 +1044,18 @@
 
               {/* Individual Balances */}
               <div class="space-y-3">
-                <h3 class="text-xs font-bold uppercase text-slate-600 tracking-wider">2. Individual Participant Balances</h3>
+                <h3 class="text-xs font-bold uppercase text-slate-600 tracking-wider">3. Individual Participant Balances</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {balances.map((b, idx) => {
                     const isOwed = b.net > 0.01;
                     const owes = b.net < -0.01;
                     return (
-                      <div key={idx} class="bg-white border border-slate-200 p-3.5 rounded-xl flex justify-between items-center text-xs shadow-sm">
+                      <div key={idx} class="bg-white border border-slate-200 p-3.5 rounded-xl flex justify-between items-center text-xs shadow-sm gap-2">
                         <div>
                           <p class="font-bold text-slate-900">{b.name}</p>
-                          <p class="text-[10px] text-slate-500">Paid Upfront: RM {b.paid.toFixed(2)} | Fair Share: RM {perPaxTotalShare.toFixed(2)}</p>
+                          <p class="text-[10px] text-slate-500">Paid Upfront: RM {b.paid.toFixed(2)} | Their Share: RM {b.owed.toFixed(2)}</p>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right shrink-0">
                           {isOwed && (
                             <span class="bg-emerald-50 text-emerald-800 font-bold text-[11px] px-2.5 py-1 rounded border border-emerald-200 block">
                               Gets Back RM {b.net.toFixed(2)}
