@@ -38,6 +38,35 @@
       transform: translate(1px, 1px);
       box-shadow: 1px 1px 0px #000000;
     }
+
+    /* --- Home page motion --- */
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.8s ease, transform 0.8s cubic-bezier(.2,.7,.2,1); }
+    .reveal-in { opacity: 1; transform: none; }
+
+    .kenburns { animation: kenburns 4s ease-out forwards; }
+    @keyframes kenburns { from { transform: scale(1); } to { transform: scale(1.06); } }
+
+    .slide-progress { width: 0; animation-name: slideprogress; animation-timing-function: linear; animation-fill-mode: forwards; }
+    @keyframes slideprogress { from { width: 0; } to { width: 100%; } }
+
+    .hero-rise { animation: herorise 1.1s cubic-bezier(.2,.7,.2,1) both; }
+    @keyframes herorise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+
+    .scroll-cue { transform-origin: top; animation: scrollcue 1.8s ease-in-out infinite; }
+    @keyframes scrollcue { 0% { transform: scaleY(0); } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+
+    .hero-empty { background: radial-gradient(ellipse at 20% 20%, #002ce2 0%, transparent 55%), radial-gradient(ellipse at 85% 70%, #0040e4 0%, transparent 50%), #070a17; }
+
+    .page-fade { animation: pagefade 0.45s ease both; }
+    @keyframes pagefade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    .nav-scroll { scrollbar-width: none; }
+    .nav-scroll::-webkit-scrollbar { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal, .reveal-in { opacity: 1; transform: none; transition: none; }
+      .kenburns, .hero-rise, .scroll-cue, .page-fade { animation: none; }
+    }
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden relative bg-slate-50 text-slate-900">
@@ -1201,6 +1230,446 @@
       </div>
     );
 
+    // =====================================================================
+    // --- 6. HOME PAGE (scrolling sections: slideshow → gallery → recap → address) ---
+    // =====================================================================
+
+    // Drive image links. Files must be shared "Anyone with the link can view".
+    const driveImg = (id, w) => `https://drive.google.com/thumbnail?id=${id}&sz=w${w}`;
+    const driveImgAlt = (id, w) => `https://lh3.googleusercontent.com/d/${id}=w${w}`;
+    const driveVideo = (id) => `https://drive.google.com/file/d/${id}/preview`;
+    const SLIDE_MS = 3000; // slideshow moves every 3 seconds
+
+    // Image that tries the second Drive link if the first one fails, then shows a fallback
+    const DriveImage = ({ id, w, alt, className, eager, fallback }) => {
+      const [attempt, setAttempt] = useState(0);
+      useEffect(() => { setAttempt(0); }, [id, w]);
+      if (attempt >= 2) return fallback || null;
+      const src = attempt === 0 ? driveImg(id, w) : driveImgAlt(id, w);
+      return (
+        <img
+          src={src}
+          alt={alt || ''}
+          className={className}
+          loading={eager ? 'eager' : 'lazy'}
+          referrerPolicy="no-referrer"
+          draggable="false"
+          onError={() => setAttempt(attempt + 1)}
+        />
+      );
+    };
+
+    // Loads the list of photos/videos from the Drive folder (through Apps Script)
+    const useDriveMedia = () => {
+      const [media, setMedia] = useState([]);
+      const [status, setStatus] = useState('loading');
+      useEffect(() => {
+        fetch(`${APPS_SCRIPT_URL}?action=getMedia`)
+          .then((res) => res.json())
+          .then((data) => {
+            const list = Array.isArray(data) ? data : ((data && data.media) || []);
+            setMedia(list);
+            setStatus(list.length > 0 ? 'ready' : 'empty');
+          })
+          .catch((err) => {
+            console.error('Failed to load Drive media:', err);
+            setStatus('error');
+          });
+      }, []);
+      return { media, status };
+    };
+
+    // Fades + slides content in when it scrolls into view
+    const Reveal = ({ children, delay, className }) => {
+      const ref = React.useRef(null);
+      const [shown, setShown] = useState(false);
+      useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        if (!('IntersectionObserver' in window)) { setShown(true); return; }
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) { setShown(true); io.disconnect(); }
+          });
+        }, { threshold: 0.12 });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      return (
+        <div ref={ref} className={`reveal ${shown ? 'reveal-in' : ''} ${className || ''}`} style={{ transitionDelay: `${delay || 0}ms` }}>
+          {children}
+        </div>
+      );
+    };
+
+    const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
+
+    // --- Section 1: full-screen photo slideshow ---
+    const HeroSlideshow = ({ photos, status }) => {
+      const [idx, setIdx] = useState(0);
+      const touchX = React.useRef(null);
+      const n = photos.length;
+
+      useEffect(() => { if (idx >= n && n > 0) setIdx(0); }, [n]);
+
+      // Auto-advance every 3 s. Restarts the timer whenever the slide changes (also after a manual click).
+      useEffect(() => {
+        if (n < 2) return;
+        const t = setTimeout(() => setIdx((i) => (i + 1) % n), SLIDE_MS);
+        return () => clearTimeout(t);
+      }, [idx, n]);
+
+      const go = (dir) => { if (n > 0) setIdx((i) => (i + dir + n) % n); };
+
+      // Only the previous, current and next photos are in the page, so 100+ photos stay fast
+      const visible = n === 0 ? [] : Array.from(new Set([(idx - 1 + n) % n, idx, (idx + 1) % n]));
+
+      return (
+        <section
+          className="relative h-[100svh] min-h-[560px] w-full overflow-hidden bg-[#070a17] text-white"
+          onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+            touchX.current = null;
+          }}
+        >
+          {/* Photos */}
+          {visible.map((i) => {
+            const p = photos[i];
+            const active = i === idx;
+            return (
+              <div key={p.id} className={`absolute inset-0 transition-opacity duration-1000 ease-out ${active ? 'opacity-100 z-[1]' : 'opacity-0 z-0'}`}>
+                {/* Blurred copy fills the screen, so portrait photos don't leave black bars */}
+                <DriveImage id={p.id} w={480} eager className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60" />
+                <DriveImage
+                  id={p.id}
+                  w={1920}
+                  eager
+                  alt={p.name}
+                  className={`absolute inset-0 w-full h-full object-contain ${active ? 'kenburns' : ''}`}
+                />
+              </div>
+            );
+          })}
+
+          {/* No photos yet */}
+          {n === 0 && (
+            <div className="absolute inset-0 hero-empty flex items-center justify-center">
+              <div className="text-center px-6 max-w-md">
+                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/60 mb-3">
+                  {status === 'loading' ? 'Loading photos…' : 'Photo wall'}
+                </p>
+                {status !== 'loading' && (
+                  <p className="text-sm text-white/80">
+                    Photos will appear here once they're added to the shared Drive folder.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Dark gradient so the text stays readable on any photo */}
+          <div className="absolute inset-0 z-[2] pointer-events-none bg-gradient-to-t from-[#070a17] via-[#070a17]/30 to-[#070a17]/50"></div>
+
+          {/* Title block */}
+          <div className="absolute inset-x-0 bottom-0 z-[3] px-5 md:px-12 pb-10 md:pb-14">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-8">
+              <div className="hero-rise">
+                <span className="inline-block bg-[#f7f301] text-slate-900 text-[11px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                  4Balance Homestay · 23–24 Oct 2026
+                </span>
+                <h1 className="mt-4 text-[15vw] md:text-[9rem] leading-[0.85] font-extrabold tracking-tighter">
+                  Ehbnb<span className="text-[#f7f301]">.com</span>
+                </h1>
+                <p className="mt-3 text-lg md:text-2xl font-semibold text-white/85">You go, I go</p>
+              </div>
+
+              {n > 0 && (
+                <div className="flex items-center gap-4 md:pb-3">
+                  <span className="font-mono text-sm tabular-nums text-white/80">
+                    <span className="text-white font-bold">{pad2(idx + 1)}</span> / {pad2(n)}
+                  </span>
+                  {n > 1 && (
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => go(-1)} aria-label="Previous photo" className="w-11 h-11 rounded-full border border-white/40 hover:bg-white hover:text-slate-900 transition flex items-center justify-center text-lg">←</button>
+                      <button type="button" onClick={() => go(1)} aria-label="Next photo" className="w-11 h-11 rounded-full border border-white/40 hover:bg-white hover:text-slate-900 transition flex items-center justify-center text-lg">→</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 3-second progress bar */}
+            {n > 1 && (
+              <div className="max-w-7xl mx-auto mt-6 h-[3px] bg-white/20 rounded-full overflow-hidden">
+                <div key={idx} className="h-full bg-[#f7f301] slide-progress" style={{ animationDuration: `${SLIDE_MS}ms` }}></div>
+              </div>
+            )}
+          </div>
+
+          {/* Scroll hint */}
+          <div className="absolute z-[3] right-5 md:right-12 top-1/2 -translate-y-1/2 hidden md:flex flex-col items-center gap-3 text-white/60">
+            <span className="text-[10px] font-bold uppercase tracking-[0.3em] [writing-mode:vertical-rl]">Scroll</span>
+            <span className="scroll-cue block w-px h-14 bg-white/50"></span>
+          </div>
+        </section>
+      );
+    };
+
+    // --- Full-screen viewer for photos and videos ---
+    const Lightbox = ({ media, index, onClose, onNav }) => {
+      const item = media[index];
+      useEffect(() => {
+        const onKey = (e) => {
+          if (e.key === 'Escape') onClose();
+          if (e.key === 'ArrowRight') onNav(1);
+          if (e.key === 'ArrowLeft') onNav(-1);
+        };
+        window.addEventListener('keydown', onKey);
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+          window.removeEventListener('keydown', onKey);
+          document.body.style.overflow = prevOverflow;
+        };
+      }, [onClose, onNav]);
+      if (!item) return null;
+
+      return (
+        <div className="fixed inset-0 z-[100] bg-[#070a17]/95 flex flex-col" onClick={onClose}>
+          <div className="flex items-center justify-between px-4 md:px-8 py-4 text-white" onClick={(e) => e.stopPropagation()}>
+            <span className="font-mono text-xs text-white/70">{pad2(index + 1)} / {pad2(media.length)}</span>
+            <button type="button" onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full border border-white/30 hover:bg-white hover:text-slate-900 transition text-lg">✕</button>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center px-3 md:px-20 pb-6 relative min-h-0">
+            <div className="w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              {item.type === 'video' ? (
+                <iframe
+                  key={item.id}
+                  src={driveVideo(item.id)}
+                  className="w-full max-w-5xl aspect-video rounded-xl bg-black"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  title={item.name}
+                ></iframe>
+              ) : (
+                <DriveImage
+                  key={item.id}
+                  id={item.id}
+                  w={2000}
+                  eager
+                  alt={item.name}
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                  fallback={<p className="text-white/70 text-sm">This photo couldn't be loaded.</p>}
+                />
+              )}
+            </div>
+
+            {media.length > 1 && (
+              <React.Fragment>
+                <button type="button" aria-label="Previous" onClick={(e) => { e.stopPropagation(); onNav(-1); }} className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white hover:text-slate-900 text-white transition text-lg">←</button>
+                <button type="button" aria-label="Next" onClick={(e) => { e.stopPropagation(); onNav(1); }} className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white hover:text-slate-900 text-white transition text-lg">→</button>
+              </React.Fragment>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // --- Section 2: photo + video gallery ---
+    const GallerySection = ({ media, status }) => {
+      const [openIdx, setOpenIdx] = useState(null);
+      const [page, setPage] = useState(0);
+      const PER_PAGE = 6; // 3 columns × 2 rows
+      const pageCount = Math.max(1, Math.ceil(media.length / PER_PAGE));
+      const safePage = Math.min(page, pageCount - 1);
+      const start = safePage * PER_PAGE;
+      const list = media.slice(start, start + PER_PAGE);
+      const goPage = (dir) => setPage((p) => (Math.min(p, pageCount - 1) + dir + pageCount) % pageCount);
+      const photoCount = media.filter((m) => m.type === 'image').length;
+      const videoCount = media.filter((m) => m.type === 'video').length;
+
+      const closeBox = React.useCallback(() => setOpenIdx(null), []);
+      const navBox = React.useCallback((dir) => {
+        setOpenIdx((i) => (i === null ? i : (i + dir + media.length) % media.length));
+      }, [media.length]);
+
+      return (
+        <section id="memories" className="relative bg-[#002ce2] text-white py-20 md:py-28 px-5 md:px-12 overflow-hidden">
+          <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-[#0040e4] blur-3xl opacity-70 pointer-events-none"></div>
+          <div className="max-w-7xl mx-auto relative">
+            <Reveal className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8 md:mb-10">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#f7f301] mb-3">01 — Memories</p>
+                <h2 className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[0.9]">Every photo,<br />one place.</h2>
+                <p className="mt-4 text-sm md:text-base text-white/75">
+                  {status === 'ready'
+                    ? `${photoCount} photo${photoCount === 1 ? '' : 's'}${videoCount ? ` · ${videoCount} video${videoCount === 1 ? '' : 's'}` : ''} from the trip`
+                    : 'Photos and videos from the trip'}
+                </p>
+              </div>
+              <a href={DRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer" className="self-start md:self-auto inline-flex items-center gap-2 bg-[#f7f301] text-slate-900 font-extrabold text-sm px-5 py-3 rounded-full hover:bg-white transition">
+                📁 Add yours to the Drive folder <span>→</span>
+              </a>
+            </Reveal>
+
+            {media.length === 0 ? (
+              <Reveal>
+                <div className="border-2 border-dashed border-white/30 rounded-2xl p-10 text-center text-white/75 text-sm">
+                  {status === 'loading'
+                    ? 'Loading photos…'
+                    : status === 'error'
+                      ? "Couldn't reach the photo folder right now. Try refreshing the page."
+                      : 'No photos yet. Upload them to the shared Drive folder and they will show up here automatically.'}
+                </div>
+              </Reveal>
+            ) : (
+              <div key={safePage} className="grid grid-cols-3 gap-2 md:gap-4 page-fade">
+                {list.map((m, i) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setOpenIdx(start + i)}
+                    className="group relative block w-full aspect-square md:aspect-[16/10] overflow-hidden rounded-lg md:rounded-xl bg-[#0018a8] focus:outline-none focus:ring-4 focus:ring-[#f7f301]"
+                  >
+                    <DriveImage
+                      id={m.id}
+                      w={800}
+                      alt={m.name}
+                      className="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                      fallback={<span className="absolute inset-0 flex items-center justify-center text-white/60 text-xs">{m.type === 'video' ? 'Video' : 'Photo'}</span>}
+                    />
+                    {m.type === 'video' && (
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <span className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-[#f7f301] text-slate-900 flex items-center justify-center text-base md:text-xl shadow-lg pl-1">▶</span>
+                      </span>
+                    )}
+                    <span className="absolute inset-0 bg-[#070a17]/0 group-hover:bg-[#070a17]/20 transition"></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Page buttons: flip through 6 at a time */}
+            {pageCount > 1 && (
+              <div className="mt-6 md:mt-8 flex items-center justify-center gap-4">
+                <button type="button" onClick={() => goPage(-1)} aria-label="Previous 6" className="w-11 h-11 rounded-full border-2 border-white text-white hover:bg-white hover:text-[#002ce2] transition text-lg">←</button>
+                <span className="font-mono text-sm tabular-nums text-white/80 min-w-[5rem] text-center">
+                  <span className="text-white font-bold">{safePage + 1}</span> / {pageCount}
+                </span>
+                <button type="button" onClick={() => goPage(1)} aria-label="Next 6" className="w-11 h-11 rounded-full border-2 border-white text-white hover:bg-white hover:text-[#002ce2] transition text-lg">→</button>
+              </div>
+            )}
+          </div>
+
+          {openIdx !== null && (
+            <Lightbox media={media} index={openIdx} onClose={closeBox} onNav={navBox} />
+          )}
+        </section>
+      );
+    };
+
+    // --- Section 3: trip recap + shortcuts to the other tabs ---
+    const RecapSection = ({ peopleCount, photoCount, videoCount, onNavigate }) => {
+      const stats = [
+        { value: '1', label: 'Night at the homestay' },
+        { value: peopleCount > 0 ? `${peopleCount}` : '—', label: 'People on the trip' },
+        { value: `${photoCount}`, label: 'Photos shared' },
+        { value: `${videoCount}`, label: 'Videos shared' }
+      ];
+      const links = [
+        { id: 'agenda', label: 'Agenda', desc: 'What we did, hour by hour' },
+        { id: 'transport', label: 'Transportation', desc: 'Cars, drivers and pickup routes' },
+        { id: 'bills', label: 'Receipts and Bills', desc: 'Who paid, who owes, and how much' },
+        { id: 'common', label: 'Common Info', desc: 'Address, Wi-Fi, rules and contacts' }
+      ];
+
+      return (
+        <section className="bg-[#f7f301] text-slate-900 py-20 md:py-28 px-5 md:px-12">
+          <div className="max-w-7xl mx-auto">
+            <Reveal>
+              <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#002ce2] mb-3">02 — The trip</p>
+              <h2 className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[0.9]">Sri Petaling,<br />23–24 October.</h2>
+            </Reveal>
+
+            <div className="mt-12 grid grid-cols-2 md:grid-cols-4 border-t-2 border-slate-900">
+              {stats.map((s, i) => (
+                <Reveal key={i} delay={i * 90} className={`py-6 md:py-8 pr-4 border-b-2 border-slate-900 md:border-b-0 ${i % 2 === 0 ? 'border-r-2 md:border-r-0' : ''} ${i < 3 ? 'md:border-r-2' : ''} ${i % 2 === 1 ? 'pl-4' : ''} ${i > 0 ? 'md:pl-6' : ''}`}>
+                  <p className="text-5xl md:text-7xl font-extrabold tracking-tighter tabular-nums">{s.value}</p>
+                  <p className="mt-2 text-xs md:text-sm font-semibold text-slate-700">{s.label}</p>
+                </Reveal>
+              ))}
+            </div>
+
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {links.map((l, i) => (
+                <Reveal key={l.id} delay={i * 70}>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(l.id)}
+                    className="group w-full text-left bg-slate-900 text-white rounded-2xl p-6 md:p-7 flex items-center justify-between gap-4 hover:bg-[#002ce2] transition"
+                  >
+                    <span>
+                      <span className="block text-xl md:text-2xl font-extrabold tracking-tight">{l.label}</span>
+                      <span className="block mt-1 text-xs md:text-sm text-white/70">{l.desc}</span>
+                    </span>
+                    <span className="text-2xl transition group-hover:translate-x-1">→</span>
+                  </button>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    };
+
+    // --- Section 4: pickup address form (kept at the bottom now that the trip is over) ---
+    const AddressSection = ({ autoEmail }) => (
+      <section className="bg-slate-100 text-slate-900 py-20 md:py-28 px-5 md:px-12">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          <Reveal className="lg:col-span-5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#002ce2] mb-3">03 — Pickup</p>
+            <h2 className="text-4xl md:text-6xl font-extrabold tracking-tighter leading-[0.9]">Pickup<br />address.</h2>
+            <p className="mt-4 text-sm text-slate-600 max-w-sm">
+              Drivers use these addresses to plan the pickup routes in the Transportation tab.
+            </p>
+          </Reveal>
+          <Reveal className="lg:col-span-7" delay={120}>
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200">
+              <AddressForm autoEmail={autoEmail} />
+            </div>
+          </Reveal>
+        </div>
+      </section>
+    );
+
+    const HomePage = ({ autoEmail, onNavigate }) => {
+      const { media, status } = useDriveMedia();
+      const [peopleCount, setPeopleCount] = useState(0);
+
+      useEffect(() => {
+        fetch(`${APPS_SCRIPT_URL}?action=getBillsData`)
+          .then((res) => res.json())
+          .then((data) => setPeopleCount((data.participants || []).length))
+          .catch(() => {});
+      }, []);
+
+      const photos = media.filter((m) => m.type === 'image');
+      const videos = media.filter((m) => m.type === 'video');
+
+      return (
+        <div>
+          <HeroSlideshow photos={photos} status={status} />
+          <GallerySection media={media} status={status} />
+          <RecapSection peopleCount={peopleCount} photoCount={photos.length} videoCount={videos.length} onNavigate={onNavigate} />
+          <AddressSection autoEmail={autoEmail} />
+        </div>
+      );
+    };
+
     // --- Main App Layout ---
     const App = () => {
       const [activeTab, setActiveTab] = useState('address');
@@ -1242,65 +1711,100 @@
         { id: 'common', label: 'Common Info' }
       ];
 
-      return (
-        <div class="min-h-screen flex flex-col justify-between relative z-10 px-6 py-6 max-w-7xl mx-auto">
-          <header class="flex justify-between items-center py-4 border-b border-slate-200 mb-8">
-            <div class="flex items-center gap-3">
-              <div class="text-xl font-bold tracking-tight text-slate-900">
-                Ehbnb<span class="text-[#002ce2]">.com</span>
-              </div>
-              {isAdmin && (
-                <span class="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
-                  Admin Mode Active
-                </span>
-              )}
-            </div>
+      // Header is see-through over the Home slideshow, and turns solid once you scroll
+      const [scrolled, setScrolled] = useState(false);
+      useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 40);
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+      }, []);
 
-            <nav class="flex flex-wrap items-center gap-2 md:gap-3">
-              {navTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  class={`text-xs md:text-sm font-semibold px-3.5 py-2 rounded-lg transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-[#002ce2] text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+      const goToTab = (id) => {
+        setActiveTab(id);
+        window.scrollTo(0, 0);
+      };
 
-              <button 
-                onClick={toggleAdmin} 
-                class={`text-xs font-semibold px-2.5 py-2 rounded-lg transition-all border ${
-                  isAdmin 
-                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100' 
-                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+      const isHome = activeTab === 'address';
+      const onDark = isHome && !scrolled;
+
+      const header = (
+        <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${onDark ? 'bg-transparent' : 'bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm'}`}>
+          <div className="max-w-7xl mx-auto px-4 md:px-12 py-3 flex items-center gap-3">
+            <button type="button" onClick={() => goToTab('address')} className={`shrink-0 text-lg md:text-xl font-extrabold tracking-tight ${onDark ? 'text-white' : 'text-slate-900'}`}>
+              Ehbnb<span className={onDark ? 'text-[#f7f301]' : 'text-[#002ce2]'}>.com</span>
+            </button>
+            {isAdmin && (
+              <span className="hidden sm:inline-block shrink-0 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                Admin
+              </span>
+            )}
+
+            <nav className="nav-scroll flex-1 flex items-center justify-start md:justify-end gap-1 md:gap-2 overflow-x-auto whitespace-nowrap">
+              {navTabs.map((tab) => {
+                const active = activeTab === tab.id;
+                const cls = onDark
+                  ? (active ? 'bg-white text-slate-900' : 'text-white/85 hover:text-white hover:bg-white/15')
+                  : (active ? 'bg-[#002ce2] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100');
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => goToTab(tab.id)}
+                    className={`shrink-0 text-xs md:text-sm font-semibold px-3 md:px-3.5 py-2 rounded-full transition-all ${cls}`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={toggleAdmin}
+                className={`shrink-0 text-xs font-semibold px-3 py-2 rounded-full transition-all border ${
+                  isAdmin
+                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                    : (onDark ? 'text-white/85 border-white/30 hover:bg-white/15' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200')
                 }`}
                 title="Toggle Admin Edit Mode"
               >
-                {isAdmin ? '🔓 Lock Admin' : '🔒 Admin'}
+                {isAdmin ? '🔓 Lock' : '🔒 Admin'}
               </button>
             </nav>
-          </header>
+          </div>
+        </header>
+      );
 
-          <main class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center my-auto py-4">
-            <div class="lg:col-span-5 space-y-6">
-              <span class="inline-block bg-[#f7f301] text-slate-900 border border-slate-900 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                4Balance Homestay
-              </span>
-              
-              <h1 class="text-5xl md:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                Ehbnb<span class="text-[#002ce2]">.com</span>
-              </h1>
-              
-              <p class="text-lg text-slate-600 font-semibold tracking-wide">
-                You go, I go
-              </p>
+      const footer = (
+        <footer className="bg-[#070a17] text-white px-5 md:px-12 py-12">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+            <div>
+              <p className="text-4xl md:text-6xl font-extrabold tracking-tighter">Ehbnb<span className="text-[#f7f301]">.com</span></p>
+              <p className="mt-2 text-sm text-white/60">You go, I go · 4Balance Homestay Sri Petaling</p>
             </div>
+            <a href={DRIVE_FOLDER_URL} target="_blank" rel="noopener noreferrer" className="self-start md:self-auto text-sm font-bold border border-white/30 rounded-full px-5 py-2.5 hover:bg-white hover:text-slate-900 transition">
+              📁 Trip photo folder →
+            </a>
+          </div>
+        </footer>
+      );
 
-            <div class="lg:col-span-7">
+      if (isHome) {
+        return (
+          <div className="min-h-screen bg-[#070a17]">
+            {header}
+            <HomePage autoEmail={autoEmail} onNavigate={goToTab} />
+            {footer}
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {header}
+        <div class="flex-1 flex flex-col justify-between relative z-10 px-6 pt-24 pb-10 max-w-7xl mx-auto w-full">
+          <main class="w-full max-w-4xl mx-auto py-4">
+            <div>
               <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden">
                 <div class="flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
                   <div class="flex gap-2">
@@ -1311,7 +1815,6 @@
                   <span class="text-[10px] font-mono font-semibold text-slate-400 uppercase tracking-widest">Ehbnb Dashboard</span>
                 </div>
 
-                {activeTab === 'address' && <AddressForm autoEmail={autoEmail} />}
                 {activeTab === 'agenda' && <AgendaView />}
                 {activeTab === 'transport' && <TransportView isAdmin={isAdmin} />}
                 {activeTab === 'bills' && <BillsView isAdmin={isAdmin} />}
@@ -1319,10 +1822,8 @@
               </div>
             </div>
           </main>
-
-          <footer class="text-center text-xs text-slate-400 py-4 relative z-10 font-medium">
-            Ehbnb.com • 4Balance Homestay Sri Petaling
-          </footer>
+        </div>
+          {footer}
         </div>
       );
     };
